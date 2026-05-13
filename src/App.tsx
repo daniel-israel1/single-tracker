@@ -4,7 +4,7 @@ import {
   Bike, Mountain, MapPin, ExternalLink, UserPlus, 
   Trophy, Route, Activity, Plus, Minus, Info, 
   CheckCircle2, Battery, Save, Loader2, Pencil, FilterX,
-  Map as MapIcon, LayoutGrid
+  Map as LucideMap, LayoutGrid
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -76,10 +76,11 @@ const TRAILS = [
   { id: 't46', name: 'סינגלים פארק תמנע', region: 'דרום', difficulty: 'בינוני', lengthKm: 20, elevationM: 450, popularity: '⭐⭐⭐⭐ נוף מדברי', kklLink: 'https://www.kkl.org.il/bike/trips/2576/', reviewLink: '', coords: [29.77, 34.98] }
 ];
 
-// Component to handle dynamic Map rendering
+// Component to handle dynamic Map rendering securely
 const MapView = ({ trails, getProgressForTrail, setViewMode, setSearchQuery }) => {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
+  const markersLayer = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -110,18 +111,15 @@ const MapView = ({ trails, getProgressForTrail, setViewMode, setSearchQuery }) =
         window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '© OpenStreetMap'
         }).addTo(mapInstance.current);
+        markersLayer.current = window.L.layerGroup().addTo(mapInstance.current);
       }
 
-      if (mapInstance.current) {
-        // Clear existing markers
-        mapInstance.current.eachLayer((layer) => {
-          if (layer instanceof window.L.Marker) {
-            mapInstance.current.removeLayer(layer);
-          }
-        });
+      if (mapInstance.current && markersLayer.current) {
+        markersLayer.current.clearLayers();
 
-        // Add new markers
         trails.forEach(trail => {
+          if (!trail.coords) return;
+          
           const userProg = getProgressForTrail(trail.id);
           const isDone = (userProg.ebikeCount + userProg.analogCount) > 0;
           
@@ -138,7 +136,7 @@ const MapView = ({ trails, getProgressForTrail, setViewMode, setSearchQuery }) =
             popupAnchor: [0, -14]
           });
 
-          const marker = window.L.marker(trail.coords, { icon: customIcon }).addTo(mapInstance.current);
+          const marker = window.L.marker(trail.coords, { icon: customIcon });
           
           const popupContent = document.createElement('div');
           popupContent.className = 'text-right font-sans';
@@ -167,6 +165,8 @@ const MapView = ({ trails, getProgressForTrail, setViewMode, setSearchQuery }) =
               };
             }
           });
+
+          markersLayer.current.addLayer(marker);
         });
       }
     };
@@ -177,6 +177,15 @@ const MapView = ({ trails, getProgressForTrail, setViewMode, setSearchQuery }) =
       isMounted = false;
     };
   }, [trails, getProgressForTrail, setViewMode, setSearchQuery]);
+
+  useEffect(() => {
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+    };
+  }, []);
 
   return <div ref={mapRef} className="w-full h-full rounded-xl z-0" style={{ zIndex: 0 }}></div>;
 };
@@ -491,7 +500,7 @@ export default function KKLTrackerApp() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-24 relative">
+    <div dir="rtl" className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-32 md:pb-24 relative">
       
       {(isFetching || isSaving) && (
         <div className="fixed top-0 left-0 right-0 h-1.5 bg-emerald-100 z-50 overflow-hidden">
@@ -500,11 +509,11 @@ export default function KKLTrackerApp() {
       )}
 
       {Object.keys(unsavedChanges).length > 0 && (
-        <div className="fixed bottom-6 left-0 right-0 flex justify-center z-40 pointer-events-none px-4">
+        <div className="fixed bottom-6 md:bottom-8 left-0 right-0 flex justify-center z-40 pointer-events-none px-4">
           <button 
             onClick={handleSaveChanges}
             disabled={isSaving}
-            className="pointer-events-auto w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white px-8 py-3.5 rounded-full shadow-2xl font-bold flex items-center justify-center gap-3 transition-all transform hover:-translate-y-1 active:scale-95 border-4 border-slate-700/20"
+            className="pointer-events-auto w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white px-8 py-4 sm:py-3.5 rounded-full shadow-2xl font-bold flex items-center justify-center gap-3 transition-all transform hover:-translate-y-1 active:scale-95 border-4 border-slate-700/20"
           >
             {isSaving ? <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" /> : <Save className="w-5 h-5 text-emerald-400" />}
             {isSaving ? 'שומר בשרת...' : `שמור ${Object.keys(unsavedChanges).length} שינויים במסד הנתונים`}
@@ -528,7 +537,7 @@ export default function KKLTrackerApp() {
             <div className="flex items-center gap-2 bg-white/10 p-2 rounded-xl border border-white/20 w-full sm:w-auto">
               <span className="text-sm text-emerald-50 whitespace-nowrap">רוכב מציג:</span>
               <select 
-                className="bg-white text-emerald-900 rounded-lg px-3 py-1.5 outline-none font-medium text-sm flex-1 sm:w-32 cursor-pointer"
+                className="bg-white text-emerald-900 rounded-lg px-3 py-2 sm:py-1.5 outline-none font-medium text-sm flex-1 sm:w-32 cursor-pointer"
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
               >
@@ -538,7 +547,7 @@ export default function KKLTrackerApp() {
               </select>
               <button 
                 onClick={() => setIsAddingUser(!isAddingUser)}
-                className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+                className="p-2 sm:p-1.5 hover:bg-white/20 rounded-lg transition-colors shrink-0"
                 title="הוסף רוכב חדש"
               >
                 <UserPlus className="w-5 h-5" />
@@ -547,15 +556,15 @@ export default function KKLTrackerApp() {
           </div>
 
           {isAddingUser && (
-            <form onSubmit={handleAddUser} className="mt-4 flex gap-2 max-w-sm ml-auto animate-in fade-in slide-in-from-top-4">
+            <form onSubmit={handleAddUser} className="mt-4 flex gap-2 w-full sm:max-w-sm sm:ml-auto animate-in fade-in slide-in-from-top-4">
               <input 
                 type="text" 
                 placeholder="שם הרוכב החדש..." 
-                className="flex-1 rounded-lg px-3 py-2 text-slate-800 text-sm outline-none border border-emerald-400 focus:ring-2 focus:ring-emerald-400"
+                className="flex-1 rounded-lg px-3 py-2.5 sm:py-2 text-slate-800 text-sm outline-none border border-emerald-400 focus:ring-2 focus:ring-emerald-400"
                 value={newUserName}
                 onChange={(e) => setNewUserName(e.target.value)}
               />
-              <button type="submit" className="bg-emerald-900 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+              <button type="submit" className="bg-emerald-900 hover:bg-emerald-800 text-white px-4 py-2.5 sm:py-2 rounded-lg text-sm font-medium transition-colors">
                 הוסף
               </button>
             </form>
@@ -563,15 +572,15 @@ export default function KKLTrackerApp() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+      <main className="max-w-6xl mx-auto px-4 py-6 sm:py-8 space-y-6">
         
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-6">
             <Trophy className="w-6 h-6 text-amber-500" />
             <h2 className="text-xl font-bold">יעד קבוצתי: לכבוש את כולם!</h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
             <div>
               <div className="flex justify-between text-sm font-medium mb-2">
                 <span>מסלולים שסיימנו</span>
@@ -602,12 +611,12 @@ export default function KKLTrackerApp() {
           </div>
         </section>
 
-        {/* Filters Section */}
-        <section className="flex flex-col md:flex-row flex-wrap gap-4 items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex flex-wrap flex-1 gap-2 w-full md:w-auto">
+        {/* Filters Section (Optimized for Mobile) */}
+        <section className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap flex-1 gap-2 w-full md:w-auto">
             
             <select 
-              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 min-w-[110px] cursor-pointer"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 sm:px-4 outline-none focus:ring-2 focus:ring-emerald-500 text-sm w-full sm:w-auto sm:min-w-[110px] cursor-pointer"
               value={filterStatus}
               onChange={e => setFilterStatus(e.target.value)}
             >
@@ -617,7 +626,7 @@ export default function KKLTrackerApp() {
             </select>
 
             <select 
-              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 min-w-[110px] cursor-pointer"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 sm:px-4 outline-none focus:ring-2 focus:ring-emerald-500 text-sm w-full sm:w-auto sm:min-w-[110px] cursor-pointer"
               value={filterLength}
               onChange={e => setFilterLength(e.target.value)}
             >
@@ -628,7 +637,7 @@ export default function KKLTrackerApp() {
             </select>
 
             <select 
-              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 min-w-[110px] cursor-pointer"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 sm:px-4 outline-none focus:ring-2 focus:ring-emerald-500 text-sm w-full sm:w-auto sm:min-w-[110px] cursor-pointer"
               value={filterRegion}
               onChange={e => setFilterRegion(e.target.value)}
             >
@@ -639,7 +648,7 @@ export default function KKLTrackerApp() {
             </select>
             
             <select 
-              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 min-w-[110px] cursor-pointer"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 sm:px-4 outline-none focus:ring-2 focus:ring-emerald-500 text-sm w-full sm:w-auto sm:min-w-[110px] cursor-pointer"
               value={filterDifficulty}
               onChange={e => setFilterDifficulty(e.target.value)}
             >
@@ -652,11 +661,11 @@ export default function KKLTrackerApp() {
 
             <button 
               onClick={handleClearFilters}
-              className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-sm text-slate-600 transition-colors shrink-0"
+              className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-sm text-slate-600 transition-colors shrink-0"
               title="נקה פילטרים"
             >
               <FilterX className="w-4 h-4" />
-              נקה
+              נקה סינון
             </button>
           </div>
 
@@ -664,7 +673,7 @@ export default function KKLTrackerApp() {
             <input 
               type="text" 
               placeholder="חיפוש סינגל..." 
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-4 pr-10 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-4 pr-10 py-2.5 sm:py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
@@ -674,25 +683,25 @@ export default function KKLTrackerApp() {
 
         {/* View Mode Toggles */}
         <div className="flex justify-end pt-2">
-          <div className="bg-white border border-slate-200 rounded-lg p-1 flex gap-1 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-lg p-1 flex gap-1 shadow-sm w-full sm:w-auto">
             <button 
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-colors ${viewMode === 'grid' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 rounded-md text-sm font-bold transition-colors ${viewMode === 'grid' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}`}
             >
               <LayoutGrid className="w-4 h-4" /> רשימה
             </button>
             <button 
               onClick={() => setViewMode('map')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-colors ${viewMode === 'map' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 rounded-md text-sm font-bold transition-colors ${viewMode === 'map' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}`}
             >
-              <MapIcon className="w-4 h-4" /> מפה חיה
+              <LucideMap className="w-4 h-4" /> מפה חיה
             </button>
           </div>
         </div>
 
         {/* Dynamic Rendering Based on View Mode */}
         {viewMode === 'map' ? (
-          <section className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 h-[600px] w-full relative z-0">
+          <section className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 h-[450px] md:h-[600px] w-full relative z-0">
             <MapView 
               trails={filteredTrails}
               getProgressForTrail={getProgressForTrail}
@@ -728,25 +737,25 @@ export default function KKLTrackerApp() {
                   <div className="p-5 border-b border-slate-100 flex-1">
                     <div className="flex justify-between items-start mb-3">
                       <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                        {isDone && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
+                        {isDone && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />}
                         {trail.name}
                       </h3>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getDifficultyColor(trail.difficulty)}`}>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border shrink-0 mr-2 ${getDifficultyColor(trail.difficulty)}`}>
                         {trail.difficulty}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 text-sm text-slate-600 mb-4">
                       <div className="flex items-center gap-1.5">
-                        <MapPin className="w-4 h-4 text-slate-400" />
-                        <span>אזור {trail.region}</span>
+                        <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className="truncate" title={trail.region}>אזור {trail.region}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <Route className="w-4 h-4 text-slate-400" />
+                        <Route className="w-4 h-4 text-slate-400 shrink-0" />
                         <span>{trail.lengthKm} ק"מ</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <Mountain className="w-4 h-4 text-slate-400" />
+                        <Mountain className="w-4 h-4 text-slate-400 shrink-0" />
                         <span>{trail.elevationM} מ' טיפוס</span>
                       </div>
                     </div>
@@ -761,50 +770,50 @@ export default function KKLTrackerApp() {
 
                   <div className="p-5 bg-slate-50/50 flex flex-col gap-4">
                     
-                    <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center justify-between bg-white p-2.5 sm:p-2 rounded-xl border border-slate-200 shadow-sm">
                       <div className="flex items-center gap-2 pl-2">
                         <div className="bg-amber-100 p-1.5 rounded-lg text-amber-700">
                           <Battery className="w-4 h-4" />
                         </div>
                         <span className="text-sm font-medium">חשמלוק</span>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <button 
                           onClick={() => handleUpdateProgress(trail.id, 'ebike', -1)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={userProg.ebikeCount === 0}
                         >
                           <Minus className="w-4 h-4" />
                         </button>
-                        <span className="w-4 text-center font-bold text-lg">{userProg.ebikeCount}</span>
+                        <span className="w-5 sm:w-4 text-center font-bold text-lg">{userProg.ebikeCount}</span>
                         <button 
                           onClick={() => handleUpdateProgress(trail.id, 'ebike', 1)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
+                          className="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
                         >
                           <Plus className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center justify-between bg-white p-2.5 sm:p-2 rounded-xl border border-slate-200 shadow-sm">
                       <div className="flex items-center gap-2 pl-2">
                         <div className="bg-slate-100 p-1.5 rounded-lg text-slate-600">
                           <Bike className="w-4 h-4" />
                         </div>
                         <span className="text-sm font-medium">אנלוגיות</span>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <button 
                           onClick={() => handleUpdateProgress(trail.id, 'analog', -1)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={userProg.analogCount === 0}
                         >
                           <Minus className="w-4 h-4" />
                         </button>
-                        <span className="w-4 text-center font-bold text-lg">{userProg.analogCount}</span>
+                        <span className="w-5 sm:w-4 text-center font-bold text-lg">{userProg.analogCount}</span>
                         <button 
                           onClick={() => handleUpdateProgress(trail.id, 'analog', 1)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
+                          className="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
                         >
                           <Plus className="w-4 h-4" />
                         </button>
@@ -831,13 +840,13 @@ export default function KKLTrackerApp() {
                         <div className="flex gap-2 mt-1">
                           <button 
                             onClick={() => handleSaveLinks(trail.id)}
-                            className="flex-1 bg-emerald-600 text-white text-sm py-1.5 rounded-lg hover:bg-emerald-700 transition"
+                            className="flex-1 bg-emerald-600 text-white text-sm py-2 sm:py-1.5 rounded-lg hover:bg-emerald-700 transition"
                           >
                             שמור
                           </button>
                           <button 
                             onClick={() => setEditingLinksId(null)}
-                            className="flex-1 bg-white border border-slate-300 text-slate-600 text-sm py-1.5 rounded-lg hover:bg-slate-50 transition"
+                            className="flex-1 bg-white border border-slate-300 text-slate-600 text-sm py-2 sm:py-1.5 rounded-lg hover:bg-slate-50 transition"
                           >
                             ביטול
                           </button>
@@ -850,7 +859,7 @@ export default function KKLTrackerApp() {
                             href={currentKklLink} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 sm:py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
                           >
                             <ExternalLink className="w-4 h-4 shrink-0" />
                             אתר קק״ל
@@ -862,7 +871,7 @@ export default function KKLTrackerApp() {
                             href={currentReviewLink} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 sm:py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
                           >
                             <ExternalLink className="w-4 h-4 shrink-0" />
                             חוות דעת
@@ -876,7 +885,7 @@ export default function KKLTrackerApp() {
                             setEditReviewLink(currentReviewLink || '');
                           }}
                           title="ערוך קישורים למסלול זה"
-                          className={`flex items-center justify-center bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors shadow-sm ${noLinks ? 'flex-1 py-2 gap-2 text-sm' : 'w-10'}`}
+                          className={`flex items-center justify-center bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors shadow-sm ${noLinks ? 'flex-1 py-2.5 sm:py-2 gap-2 text-sm' : 'w-12 sm:w-10'}`}
                         >
                           <Pencil className="w-4 h-4" />
                           {noLinks && <span>הוסף קישורים למסלול</span>}
