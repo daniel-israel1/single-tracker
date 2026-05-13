@@ -3,12 +3,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Bike, Mountain, MapPin, ExternalLink, UserPlus, 
   Trophy, Route, Activity, Plus, Minus, Info, 
-  CheckCircle2, Battery, Save, Loader2
+  CheckCircle2, Battery, Save, Loader2, Pencil
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, doc, setDoc, writeBatch } from 'firebase/firestore';
 
+// הגדרות Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyBmK7bR61OzD4sBCe9LdPA1Wzod8SUKs5w",
   authDomain: "single-tracker.firebaseapp.com",
@@ -24,25 +25,54 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// Data - Updated with 46 KKL trails (Progress won't be lost for IDs t1-t18)
 const TRAILS = [
-  { id: 't1', name: 'סינגל עירון', region: 'מרכז', difficulty: 'בינוני', lengthKm: 16, elevationM: 300, popularity: 'פופולארי מאוד, זורם ומהיר.', kklLink: 'https://www.kkl.org.il/travel/trips/108924/', reviewLink: 'https://eyarok.org.il/trip/239' },
-  { id: 't2', name: 'השופט - טבעת צהובה', region: 'צפון', difficulty: 'קל', lengthKm: 14, elevationM: 200, popularity: 'מעולה למתחילים ולחימום. המון צל.', kklLink: 'https://www.kkl.org.il/travel/trips/108620/', reviewLink: 'https://eyarok.org.il/trip/202' },
-  { id: 't3', name: 'השופט - טבעת כחולה', region: 'צפון', difficulty: 'בינוני', lengthKm: 28, elevationM: 450, popularity: 'ארוך יותר, דורש כושר, קטעים טכניים קלים.', kklLink: 'https://www.kkl.org.il/travel/trips/108620/', reviewLink: 'https://eyarok.org.il/trip/202' },
-  { id: 't4', name: 'רמת הנדיב (משולב)', region: 'צפון', difficulty: 'קל-בינוני', lengthKm: 15, elevationM: 250, popularity: 'נופים משגעים לים, גינות סלעים נחמדות.', kklLink: 'https://www.ramat-hanadiv.org.il/', reviewLink: 'https://eyarok.org.il/trip/198' },
-  { id: 't5', name: 'בן שמן - הרצל (כחול)', region: 'מרכז', difficulty: 'בינוני', lengthKm: 23, elevationM: 350, popularity: 'הקלאסיקה של המרכז. חובה לכל רוכב.', kklLink: 'https://www.kkl.org.il/travel/trips/108865/', reviewLink: 'https://eyarok.org.il/trip/221' },
-  { id: 't6', name: 'בן שמן - ענבה (אדום)', region: 'מרכז', difficulty: 'קשה', lengthKm: 24, elevationM: 450, popularity: 'טכני וקשוח יותר, הרבה עליות וסלעים.', kklLink: 'https://www.kkl.org.il/travel/trips/108865/', reviewLink: 'https://eyarok.org.il/trip/221' },
-  { id: 't7', name: 'סינגל בארי', region: 'דרום', difficulty: 'קל', lengthKm: 24, elevationM: 150, popularity: 'הכי טוב בתקופת הכלניות (דרום אדום).', kklLink: 'https://www.kkl.org.il/travel/trips/108990/', reviewLink: 'https://eyarok.org.il/trip/255' },
-  { id: 't8', name: 'סינגל גברעם', region: 'דרום', difficulty: 'בינוני', lengthKm: 20, elevationM: 250, popularity: 'סינגל כורכר זורם וכיפי מאוד.', kklLink: 'https://www.kkl.org.il/travel/trips/108955/', reviewLink: 'https://eyarok.org.il/trip/260' },
-  { id: 't9', name: 'סינגל שמשית', region: 'צפון', difficulty: 'קל', lengthKm: 12, elevationM: 150, popularity: 'קצר וקולע, מתאים גם לילדים.', kklLink: 'https://www.kkl.org.il/travel/trips/108600/', reviewLink: 'https://eyarok.org.il/trip/205' },
-  { id: 't10', name: 'סינגל סוללים', region: 'צפון', difficulty: 'קל', lengthKm: 14, elevationM: 200, popularity: 'מצוין לשילוב עם שמשית או אלון הגליל.', kklLink: 'https://www.kkl.org.il/travel/trips/108602/', reviewLink: 'https://eyarok.org.il/trip/206' },
-  { id: 't11', name: 'סינגל אלון הגליל', region: 'צפון', difficulty: 'בינוני', lengthKm: 22, elevationM: 400, popularity: 'עליות משמעותיות, נוף גלילי יפהפה.', kklLink: 'https://www.kkl.org.il/travel/trips/108605/', reviewLink: 'https://eyarok.org.il/trip/207' },
-  { id: 't12', name: 'חוף הכרמל (האדום)', region: 'צפון', difficulty: 'קשה', lengthKm: 35, elevationM: 700, popularity: 'מאתגר פיזית, נופים מדהימים של הכרמל והים.', kklLink: 'https://www.kkl.org.il/travel/trips/108700/', reviewLink: 'https://eyarok.org.il/trip/210' },
-  { id: 't13', name: 'סינגל ביריה', region: 'צפון', difficulty: 'קשה', lengthKm: 24, elevationM: 600, popularity: 'אוויר פסגות, יער עבות ועליות קשוחות.', kklLink: 'https://www.kkl.org.il/travel/trips/108550/', reviewLink: 'https://eyarok.org.il/trip/190' },
-  { id: 't14', name: 'סינגל גורל', region: 'דרום', difficulty: 'בינוני', lengthKm: 30, elevationM: 400, popularity: 'נוף מדברי עוצר נשימה, מסלול ארוך.', kklLink: 'https://www.kkl.org.il/travel/trips/109010/', reviewLink: 'https://eyarok.org.il/trip/270' },
-  { id: 't15', name: 'סינגל רוחמה', region: 'דרום', difficulty: 'קל', lengthKm: 18, elevationM: 200, popularity: 'בתרונות רוחמה היפים, מתאים לעונות המעבר.', kklLink: 'https://www.kkl.org.il/travel/trips/108960/', reviewLink: 'https://eyarok.org.il/trip/265' },
-  { id: 't16', name: 'משמר העמק', region: 'צפון', difficulty: 'קשה', lengthKm: 32, elevationM: 800, popularity: 'מבחן כושר אמיתי, יער קסום ומוצל ברובו.', kklLink: 'https://www.kkl.org.il/travel/trips/108650/', reviewLink: 'https://eyarok.org.il/trip/209' },
-  { id: 't17', name: 'סינגל גלבוע', region: 'צפון', difficulty: 'בינוני', lengthKm: 30, elevationM: 600, popularity: 'תצפיות מדהימות לעמק חרוד.', kklLink: 'https://www.kkl.org.il/travel/trips/108630/', reviewLink: 'https://eyarok.org.il/trip/204' },
-  { id: 't18', name: 'סינגל יתיר', region: 'דרום', difficulty: 'קשה', lengthKm: 32, elevationM: 650, popularity: 'היער הנטוע הגדול בישראל, חוויה מיוחדת.', kklLink: 'https://www.kkl.org.il/travel/trips/109050/', reviewLink: 'https://eyarok.org.il/trip/280' }
+  { id: 't1', name: 'סינגל עירון (ואדי ערה)', region: 'שרון ומרכז', difficulty: 'בינוני', lengthKm: 32, elevationM: 420, popularity: '⭐⭐⭐⭐⭐ מסלול מדהים', kklLink: 'https://www.kkl.org.il/bike/trips/hiron_070825/', reviewLink: 'https://eyarok.org.il/trip/239' },
+  { id: 't2', name: 'השופט - טבעת צהובה', region: 'כרמל ועמקים', difficulty: 'קל', lengthKm: 13, elevationM: 300, popularity: '⭐⭐⭐⭐ מעולה למתחילים, צל', kklLink: 'https://www.kkl.org.il/bike/trips/', reviewLink: 'https://eyarok.org.il/trip/202' },
+  { id: 't3', name: 'השופט - טבעת כחולה', region: 'כרמל ועמקים', difficulty: 'בינוני', lengthKm: 17, elevationM: 350, popularity: '⭐⭐⭐⭐ דורש כושר', kklLink: 'https://www.kkl.org.il/bike/trips/', reviewLink: 'https://eyarok.org.il/trip/202' },
+  { id: 't4', name: 'רמת הנדיב (משולב)', region: 'רמת הנדיב', difficulty: 'קל-בינוני', lengthKm: 15, elevationM: 250, popularity: '⭐⭐⭐⭐ נופים לים', kklLink: 'https://www.ramat-hanadiv.org.il/פארק-הטבע/שבילי-האופניים/', reviewLink: 'https://eyarok.org.il/trip/198' },
+  { id: 't5', name: 'בן שמן - הרצל (כחול)', region: 'ירושלים ויהודה', difficulty: 'קל', lengthKm: 10.5, elevationM: 180, popularity: '⭐⭐⭐⭐ הקלאסיקה', kklLink: 'https://kkl-jnf.org/tourism-and-recreation/recommended_trips_and_tracks/ben-shemen-routes/', reviewLink: 'https://eyarok.org.il/trip/221' },
+  { id: 't6', name: 'בן שמן - ענבה (אדום)', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 24, elevationM: 450, popularity: '⭐⭐⭐⭐⭐ טכני וקשוח', kklLink: 'https://kkl-jnf.org/tourism-and-recreation/recommended_trips_and_tracks/ben-shemen-routes/', reviewLink: 'https://eyarok.org.il/trip/221' },
+  { id: 't7', name: 'סינגל בארי (האדום)', region: 'דרום', difficulty: 'קל', lengthKm: 18, elevationM: 200, popularity: '⭐⭐⭐⭐ דרום אדום', kklLink: 'https://www.kkl.org.il/bike/trips/2000/', reviewLink: 'https://eyarok.org.il/trip/255' },
+  { id: 't8', name: 'סינגל גברעם', region: 'דרום', difficulty: 'קל', lengthKm: 20, elevationM: 160, popularity: '⭐⭐⭐ גבעות כורכר', kklLink: 'https://www.kkl.org.il/bike/trips/1997/', reviewLink: 'https://eyarok.org.il/trip/260' },
+  { id: 't9', name: 'סינגל שמשית', region: 'צפון', difficulty: 'קל', lengthKm: 12, elevationM: 150, popularity: 'קצר וקולע, מתאים גם לילדים.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/205' },
+  { id: 't10', name: 'סינגל סוללים', region: 'צפון', difficulty: 'קל', lengthKm: 14, elevationM: 200, popularity: 'מצוין לשילוב עם שמשית.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/206' },
+  { id: 't11', name: 'סינגל אלון הגליל', region: 'צפון', difficulty: 'בינוני', lengthKm: 22, elevationM: 400, popularity: 'עליות משמעותיות, נוף גלילי.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/207' },
+  { id: 't12', name: 'חוף הכרמל (האדום)', region: 'כרמל ועמקים', difficulty: 'קשה', lengthKm: 18, elevationM: 420, popularity: '⭐⭐⭐⭐ חורש טבעי', kklLink: 'https://www.kkl.org.il/bike/trips/2907/', reviewLink: 'https://eyarok.org.il/trip/210' },
+  { id: 't13', name: 'סינגל ביריה (לימונים)', region: 'צפון', difficulty: 'בינוני', lengthKm: 20, elevationM: 500, popularity: '⭐⭐⭐⭐ שלוש לולאות מעל צפת', kklLink: 'https://www.kkl.org.il/bike/trips/2994/', reviewLink: 'https://eyarok.org.il/trip/190' },
+  { id: 't14', name: 'סינגל גורל', region: 'דרום', difficulty: 'בינוני', lengthKm: 30, elevationM: 400, popularity: 'נוף מדברי עוצר נשימה.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/270' },
+  { id: 't15', name: 'סינגל רוחמה', region: 'דרום', difficulty: 'קל', lengthKm: 18, elevationM: 200, popularity: 'בתרונות רוחמה היפים.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/265' },
+  { id: 't16', name: 'משמר העמק', region: 'כרמל ועמקים', difficulty: 'קשה', lengthKm: 32, elevationM: 800, popularity: 'מבחן כושר אמיתי ביער קסום.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/209' },
+  { id: 't17', name: 'סינגל גלבוע', region: 'צפון', difficulty: 'קשה', lengthKm: 32, elevationM: 900, popularity: '⭐⭐⭐⭐ תופר את רכס הגלבוע', kklLink: 'https://www.kkl.org.il/bike/trips/2188/', reviewLink: 'https://eyarok.org.il/trip/204' },
+  { id: 't18', name: 'סינגל יתיר', region: 'דרום', difficulty: 'קשה', lengthKm: 32, elevationM: 650, popularity: 'היער הנטוע הגדול בישראל.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/280' },
+  { id: 't19', name: 'סינגל חניתה', region: 'צפון', difficulty: 'בינוני', lengthKm: 22, elevationM: 550, popularity: '⭐⭐⭐⭐ ארוך וזורם', kklLink: 'https://www.kkl.org.il/bike/trips/2755/', reviewLink: '' },
+  { id: 't20', name: 'סינגל נפתלי', region: 'צפון', difficulty: 'קשה', lengthKm: 28, elevationM: 800, popularity: '⭐⭐⭐⭐⭐ תצפית מדהימה', kklLink: 'https://www.kkl.org.il/bike/trips/2339/', reviewLink: '' },
+  { id: 't21', name: 'יערות ציפורי', region: 'צפון', difficulty: 'בינוני', lengthKm: 30, elevationM: 600, popularity: '⭐⭐⭐⭐ כולל פאמפטרק', kklLink: 'https://www.kkl.org.il/bike/trips/3/', reviewLink: '' },
+  { id: 't22', name: 'סינגל חנתון', region: 'צפון', difficulty: 'קל', lengthKm: 15, elevationM: 300, popularity: '⭐⭐⭐⭐ מומלץ למתחילים', kklLink: 'https://www.kkl.org.il/bike/trips/hamovil/', reviewLink: '' },
+  { id: 't23', name: 'כפר החורש–יפיע', region: 'צפון', difficulty: 'בינוני', lengthKm: 18, elevationM: 400, popularity: '⭐⭐⭐ נוף גלילי', kklLink: 'https://www.kkl.org.il/bike/trips/2177/', reviewLink: '' },
+  { id: 't24', name: 'אנדורו יער שגב', region: 'צפון', difficulty: 'מומחה', lengthKm: 12, elevationM: 450, popularity: '⭐⭐⭐⭐⭐ ירידה מהירה', kklLink: 'https://www.kkl.org.il/bike/trips/2122/', reviewLink: '' },
+  { id: 't25', name: 'חזון (גליל תחתון)', region: 'צפון', difficulty: 'בינוני', lengthKm: 30, elevationM: 700, popularity: '⭐⭐⭐⭐ דורש כושר', kklLink: 'https://bike.co.il/trip-edu-hazon-singel-kkl/', reviewLink: '' },
+  { id: 't26', name: 'סינגל מרום גולן', region: 'צפון', difficulty: 'בינוני', lengthKm: 10, elevationM: 250, popularity: '⭐⭐⭐ יער האלונים', kklLink: 'https://www.kkl.org.il/bike/trips/2620/', reviewLink: '' },
+  { id: 't27', name: 'סינגל משגב', region: 'כרמל ועמקים', difficulty: 'קשה', lengthKm: 25, elevationM: 700, popularity: '⭐⭐⭐⭐ נופים מרהיבים', kklLink: 'https://www.kkl.org.il/bike/trips/2122/', reviewLink: '' },
+  { id: 't28', name: 'שביל אלון הגליל (כינרת)', region: 'צפון', difficulty: 'בינוני', lengthKm: 15, elevationM: 300, popularity: '⭐⭐⭐⭐ מול הכנרת', kklLink: 'https://www.kkl.org.il/bike/trips/2006/', reviewLink: '' },
+  { id: 't29', name: 'סינגל יער שוויץ', region: 'צפון', difficulty: 'קל', lengthKm: 14, elevationM: 180, popularity: '⭐⭐⭐⭐ נוף כנרת', kklLink: 'https://www.kkl.org.il/bike/trips/2161/', reviewLink: '' },
+  { id: 't30', name: 'סינגל יער שוהם', region: 'שרון ומרכז', difficulty: 'קל', lengthKm: 15, elevationM: 200, popularity: '⭐⭐⭐ קרוב למרכז', kklLink: 'https://www.kkl.org.il/bike/trips/2126/', reviewLink: '' },
+  { id: 't31', name: 'שביל הרכסים (IMBA)', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 40, elevationM: 1100, popularity: '⭐⭐⭐⭐⭐ מסע מרתק', kklLink: 'https://www.kkl.org.il/bike/trips/2013/', reviewLink: '' },
+  { id: 't32', name: 'חדיד (ירוק) — בן שמן', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 11, elevationM: 280, popularity: '⭐⭐⭐⭐ הפתעות טכניות', kklLink: 'https://kkl-jnf.org/tourism-and-recreation/recommended_trips_and_tracks/ben-shemen-routes/', reviewLink: '' },
+  { id: 't33', name: 'סינגל עין ראפה', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 29, elevationM: 950, popularity: '⭐⭐⭐⭐⭐ פופולרי', kklLink: 'https://www.kkl.org.il/bike/trips/2082/', reviewLink: '' },
+  { id: 't34', name: 'פארק בריטניה', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 22, elevationM: 600, popularity: '⭐⭐⭐⭐⭐ נוף מרהיב', kklLink: 'https://www.kkl.org.il/bike/trips/1999/', reviewLink: '' },
+  { id: 't35', name: 'סינגל זכריה', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 14, elevationM: 350, popularity: '⭐⭐⭐ יער ישעי', kklLink: 'https://www.kkl.org.il/bike/trips/1968/', reviewLink: '' },
+  { id: 't36', name: 'סינגל חרובית', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 12, elevationM: 380, popularity: '⭐⭐⭐⭐ חגיגת אדרנלין', kklLink: 'https://www.kkl.org.il/bike/trips/1969/', reviewLink: '' },
+  { id: 't37', name: 'פארק קנדה אילון', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 20, elevationM: 450, popularity: '⭐⭐⭐⭐ נופים מרהיבים', kklLink: 'https://www.kkl.org.il/bike/trips/2005/', reviewLink: '' },
+  { id: 't38', name: 'שביל עדולם–צרפת', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 35, elevationM: 850, popularity: '⭐⭐⭐⭐ מאתגר פיזית', kklLink: 'https://www.kkl.org.il/bike/trips/2004/', reviewLink: '' },
+  { id: 't39', name: 'סינגל משואה', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 18, elevationM: 400, popularity: '⭐⭐⭐⭐ מסלול מחודש', kklLink: 'https://www.kkl.org.il/bike/trips/2928/', reviewLink: '' },
+  { id: 't40', name: 'שבילי יער הקדושים', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 20, elevationM: 450, popularity: '⭐⭐⭐⭐ פארק יפיפה', kklLink: 'https://www.kkl.org.il/bike/trips/2152/', reviewLink: '' },
+  { id: 't41', name: 'סינגל קנים', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 18, elevationM: 600, popularity: '⭐⭐⭐ מאתגר פיזית וטכנית', kklLink: 'https://www.kkl.org.il/bike/trips/2003/', reviewLink: '' },
+  { id: 't42', name: 'עין קובי (פארק בגין)', region: 'ירושלים ויהודה', difficulty: 'קל', lengthKm: 8, elevationM: 150, popularity: '⭐⭐⭐ מעגלי חדש', kklLink: 'https://www.kkl.org.il/bike/trips/8793/', reviewLink: '' },
+  { id: 't43', name: 'סינגל בארי — הכחול', region: 'דרום', difficulty: 'בינוני', lengthKm: 25, elevationM: 320, popularity: '⭐⭐⭐ יערות ונחלים', kklLink: 'https://www.kkl.org.il/bike/trips/2002/', reviewLink: '' },
+  { id: 't44', name: 'סינגל אסף-כיסופים', region: 'דרום', difficulty: 'קל', lengthKm: 22, elevationM: 180, popularity: '⭐⭐⭐⭐ רכיבה זורמת', kklLink: 'https://www.kkl.org.il/bike/trips/3004/', reviewLink: '' },
+  { id: 't45', name: 'שרשרת (בתרונות גרר)', region: 'דרום', difficulty: 'קל', lengthKm: 31.5, elevationM: 350, popularity: '⭐⭐⭐⭐ שלוש לולאות', kklLink: 'https://www.kkl.org.il/bike/trips/2796/', reviewLink: '' },
+  { id: 't46', name: 'סינגלים פארק תמנע', region: 'דרום', difficulty: 'בינוני', lengthKm: 20, elevationM: 450, popularity: '⭐⭐⭐⭐ נוף מדברי', kklLink: 'https://www.kkl.org.il/bike/trips/2576/', reviewLink: '' }
 ];
 
 export default function KKLTrackerApp() {
@@ -51,19 +81,28 @@ export default function KKLTrackerApp() {
   const [authUser, setAuthUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [progressData, setProgressData] = useState([]);
-  const [selectedUserId, setSelectedUserId] = useState("");
-  const [newUserName, setNewUserName] = useState("");
+  const [customLinks, setCustomLinks] = useState({}); // שמירת הלינקים שהמשתמשים עדכנו
+  
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [newUserName, setNewUserName] = useState('');
   const [isAddingUser, setIsAddingUser] = useState(false);
   
   const [unsavedChanges, setUnsavedChanges] = useState({});
   const [isSaving, setIsSaving] = useState(false);
-  
-  const [filterRegion, setFilterRegion] = useState("הכל");
-  const [filterDifficulty, setFilterDifficulty] = useState("הכל");
-  const [searchQuery, setSearchQuery] = useState("");
 
-  const usersRef = collection(db, "kkl_users");
-  const progressRef = collection(db, "kkl_progress");
+  // States for Link Editing
+  const [editingLinksId, setEditingLinksId] = useState(null);
+  const [editKklLink, setEditKklLink] = useState('');
+  const [editReviewLink, setEditReviewLink] = useState('');
+  
+  // Filters
+  const [filterRegion, setFilterRegion] = useState('הכל');
+  const [filterDifficulty, setFilterDifficulty] = useState('הכל');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const usersRef = collection(db, 'kkl_users');
+  const progressRef = collection(db, 'kkl_progress');
+  const linksRef = collection(db, 'kkl_links');
 
   useEffect(() => {
     const timeout = setTimeout(() => setIsLoading(false), 2000);
@@ -105,7 +144,7 @@ export default function KKLTrackerApp() {
         setUsers(fetchedUsers);
         setSelectedUserId(prev => {
           if (!prev && fetchedUsers.length > 0) {
-            const alon = fetchedUsers.find(u => u.name === "אלון");
+            const alon = fetchedUsers.find(u => u.name === 'אלון');
             return alon ? alon.id : fetchedUsers[0].id;
           }
           return prev;
@@ -131,30 +170,40 @@ export default function KKLTrackerApp() {
       setIsFetching(false);
     });
 
+    // האזנה בזמן אמת ללינקים מותאמים אישית
+    const unsubLinks = onSnapshot(linksRef, (snapshot) => {
+      const fetchedLinks = {};
+      snapshot.docs.forEach(doc => {
+        fetchedLinks[doc.id] = doc.data();
+      });
+      setCustomLinks(fetchedLinks);
+    }, (error) => console.error("Links fetch error", error));
+
     return () => {
       unsubUsers();
       unsubProgress();
+      unsubLinks();
     };
   }, [authUser]);
 
   const seedInitialData = async () => {
-    const alonId = "u_alon";
-    const danielId = "u_daniel";
+    const alonId = 'u_alon';
+    const danielId = 'u_daniel';
     
     const initialUsers = [
-      { id: alonId, name: "אלון", createdAt: new Date().toISOString() },
-      { id: danielId, name: "דניאל", createdAt: new Date().toISOString() }
+      { id: alonId, name: 'אלון', createdAt: new Date().toISOString() },
+      { id: danielId, name: 'דניאל', createdAt: new Date().toISOString() }
     ];
 
     const initialProgress = [
-      { id: alonId + "_t1", userId: alonId, trailId: "t1", ebikeCount: 5, analogCount: 0 },
-      { id: alonId + "_t2", userId: alonId, trailId: "t2", ebikeCount: 1, analogCount: 0 },
-      { id: alonId + "_t3", userId: alonId, trailId: "t3", ebikeCount: 1, analogCount: 0 },
-      { id: alonId + "_t4", userId: alonId, trailId: "t4", ebikeCount: 1, analogCount: 0 },
-      { id: danielId + "_t1", userId: danielId, trailId: "t1", ebikeCount: 1, analogCount: 0 },
-      { id: danielId + "_t2", userId: danielId, trailId: "t2", ebikeCount: 1, analogCount: 0 },
-      { id: danielId + "_t3", userId: danielId, trailId: "t3", ebikeCount: 1, analogCount: 0 },
-      { id: danielId + "_t4", userId: danielId, trailId: "t4", ebikeCount: 1, analogCount: 0 }
+      { id: `${alonId}_t1`, userId: alonId, trailId: 't1', ebikeCount: 5, analogCount: 0 },
+      { id: `${alonId}_t2`, userId: alonId, trailId: 't2', ebikeCount: 1, analogCount: 0 },
+      { id: `${alonId}_t3`, userId: alonId, trailId: 't3', ebikeCount: 1, analogCount: 0 },
+      { id: `${alonId}_t4`, userId: alonId, trailId: 't4', ebikeCount: 1, analogCount: 0 },
+      { id: `${danielId}_t1`, userId: danielId, trailId: 't1', ebikeCount: 1, analogCount: 0 },
+      { id: `${danielId}_t2`, userId: danielId, trailId: 't2', ebikeCount: 1, analogCount: 0 },
+      { id: `${danielId}_t3`, userId: danielId, trailId: 't3', ebikeCount: 1, analogCount: 0 },
+      { id: `${danielId}_t4`, userId: danielId, trailId: 't4', ebikeCount: 1, analogCount: 0 }
     ];
 
     try {
@@ -172,12 +221,12 @@ export default function KKLTrackerApp() {
     if (!newUserName.trim() || !authUser) return;
     
     setIsFetching(true);
-    const newUserId = "u_" + Date.now();
+    const newUserId = `u_${Date.now()}`;
     const newUser = { name: newUserName.trim(), createdAt: new Date().toISOString() };
 
     try {
       await setDoc(doc(usersRef, newUserId), newUser);
-      setNewUserName("");
+      setNewUserName('');
       setIsAddingUser(false);
       setSelectedUserId(newUserId);
     } catch(err) {
@@ -190,14 +239,14 @@ export default function KKLTrackerApp() {
   const handleUpdateProgress = (trailId, type, delta) => {
     if (!selectedUserId || !authUser) return;
 
-    const progressDocId = selectedUserId + "_" + trailId;
+    const progressDocId = `${selectedUserId}_${trailId}`;
     const existing = unsavedChanges[progressDocId] || progressData.find(p => p.id === progressDocId) || { id: progressDocId, userId: selectedUserId, trailId: trailId, ebikeCount: 0, analogCount: 0 };
     
     let newEbike = existing.ebikeCount;
     let newAnalog = existing.analogCount;
 
-    if (type === "ebike") newEbike = Math.max(0, newEbike + delta);
-    if (type === "analog") newAnalog = Math.max(0, newAnalog + delta);
+    if (type === 'ebike') newEbike = Math.max(0, newEbike + delta);
+    if (type === 'analog') newAnalog = Math.max(0, newAnalog + delta);
 
     const updated = { ...existing, ebikeCount: newEbike, analogCount: newAnalog };
     
@@ -223,6 +272,22 @@ export default function KKLTrackerApp() {
       setUnsavedChanges({});
     } catch (e) {
       console.error("Error saving to db", e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // שמירת לינקים חדשים למסד הנתונים
+  const handleSaveLinks = async (trailId) => {
+    try {
+      setIsSaving(true);
+      await setDoc(doc(linksRef, trailId), { 
+        kklLink: editKklLink, 
+        reviewLink: editReviewLink 
+      }, { merge: true });
+      setEditingLinksId(null);
+    } catch (err) {
+      console.error("Error saving links", err);
     } finally {
       setIsSaving(false);
     }
@@ -263,15 +328,15 @@ export default function KKLTrackerApp() {
 
   const filteredTrails = useMemo(() => {
     return TRAILS.filter(t => {
-      const matchRegion = filterRegion === "הכל" || t.region === filterRegion;
-      const matchDifficulty = filterDifficulty === "הכל" || t.difficulty.includes(filterDifficulty);
+      const matchRegion = filterRegion === 'הכל' || t.region === filterRegion;
+      const matchDifficulty = filterDifficulty === 'הכל' || t.difficulty.includes(filterDifficulty);
       const matchSearch = t.name.includes(searchQuery) || t.popularity.includes(searchQuery);
       return matchRegion && matchDifficulty && matchSearch;
     });
   }, [filterRegion, filterDifficulty, searchQuery]);
 
   const getProgressForTrail = (trailId) => {
-    const progressDocId = selectedUserId + "_" + trailId;
+    const progressDocId = `${selectedUserId}_${trailId}`;
     if (unsavedChanges[progressDocId]) {
       return unsavedChanges[progressDocId];
     }
@@ -279,10 +344,11 @@ export default function KKLTrackerApp() {
   };
 
   const getDifficultyColor = (diff) => {
-    if (diff.includes("קל")) return "bg-emerald-100 text-emerald-800 border-emerald-200";
-    if (diff.includes("בינוני")) return "bg-amber-100 text-amber-800 border-amber-200";
-    if (diff.includes("קשה")) return "bg-rose-100 text-rose-800 border-rose-200";
-    return "bg-gray-100 text-gray-800 border-gray-200";
+    if (diff.includes('קל')) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    if (diff.includes('בינוני')) return 'bg-amber-100 text-amber-800 border-amber-200';
+    if (diff.includes('קשה')) return 'bg-rose-100 text-rose-800 border-rose-200';
+    if (diff.includes('מומחה')) return 'bg-purple-100 text-purple-800 border-purple-200';
+    return 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
   if (isLoading) {
@@ -316,7 +382,7 @@ export default function KKLTrackerApp() {
             className="pointer-events-auto w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white px-8 py-3.5 rounded-full shadow-2xl font-bold flex items-center justify-center gap-3 transition-all transform hover:-translate-y-1 active:scale-95 border-4 border-slate-700/20"
           >
             {isSaving ? <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" /> : <Save className="w-5 h-5 text-emerald-400" />}
-            {isSaving ? "שומר בשרת..." : "שמור " + Object.keys(unsavedChanges).length + " שינויים במסד הנתונים"}
+            {isSaving ? 'שומר בשרת...' : `שמור ${Object.keys(unsavedChanges).length} שינויים במסד הנתונים`}
           </button>
         </div>
       )}
@@ -389,7 +455,7 @@ export default function KKLTrackerApp() {
               <div className="h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
                 <div 
                   className="h-full bg-gradient-to-l from-emerald-400 to-emerald-600 transition-all duration-1000 ease-out"
-                  style={{ width: ((stats.doneTrails / stats.totalTrails) * 100) + "%" }}
+                  style={{ width: `${(stats.doneTrails / stats.totalTrails) * 100}%` }}
                 />
               </div>
               <p className="text-xs text-slate-500 mt-2">נשארו עוד {stats.leftTrails} מסלולים כדי להשלים את היעד.</p>
@@ -397,13 +463,13 @@ export default function KKLTrackerApp() {
 
             <div>
               <div className="flex justify-between text-sm font-medium mb-2">
-                <span>קילומטראז׳ מצטבר</span>
-                <span className="text-amber-600">{stats.doneKm} / {stats.totalKm} ק״מ</span>
+                <span>קילומטראז' מצטבר</span>
+                <span className="text-amber-600">{stats.doneKm} / {stats.totalKm} ק"מ</span>
               </div>
               <div className="h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
                 <div 
                   className="h-full bg-gradient-to-l from-amber-400 to-amber-600 transition-all duration-1000 ease-out"
-                  style={{ width: ((stats.doneKm / stats.totalKm) * 100) + "%" }}
+                  style={{ width: `${(stats.doneKm / stats.totalKm) * 100}%` }}
                 />
               </div>
               <p className="text-xs text-slate-500 mt-2">רחוקים {stats.leftKm} קילומטרים מסיום כלל הסינגלים.</p>
@@ -414,18 +480,18 @@ export default function KKLTrackerApp() {
         <section className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
           <div className="flex w-full md:w-auto gap-2">
             <select 
-              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 md:w-32 cursor-pointer"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 md:w-auto cursor-pointer"
               value={filterRegion}
               onChange={e => setFilterRegion(e.target.value)}
             >
               <option value="הכל">כל האזורים</option>
-              <option value="צפון">צפון</option>
-              <option value="מרכז">מרכז</option>
-              <option value="דרום">דרום</option>
+              {[...new Set(TRAILS.map(t => t.region))].sort().map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
             </select>
             
             <select 
-              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 md:w-32 cursor-pointer"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 md:w-auto cursor-pointer"
               value={filterDifficulty}
               onChange={e => setFilterDifficulty(e.target.value)}
             >
@@ -433,6 +499,7 @@ export default function KKLTrackerApp() {
               <option value="קל">קל</option>
               <option value="בינוני">בינוני</option>
               <option value="קשה">קשה</option>
+              <option value="מומחה">מומחה</option>
             </select>
           </div>
 
@@ -452,12 +519,19 @@ export default function KKLTrackerApp() {
           {filteredTrails.map(trail => {
             const userProg = getProgressForTrail(trail.id);
             const isDone = (userProg.ebikeCount + userProg.analogCount) > 0;
-            const hasUnsavedChanges = !!unsavedChanges[selectedUserId + "_" + trail.id];
-            const cardClasses = "bg-white rounded-2xl border transition-all duration-200 flex flex-col overflow-hidden relative " + (isDone ? "border-emerald-400 shadow-md ring-1 ring-emerald-400/20" : "border-slate-200 shadow-sm hover:shadow-md");
-            const badgeClasses = "px-2.5 py-1 rounded-full text-xs font-semibold border " + getDifficultyColor(trail.difficulty);
+            const hasUnsavedChanges = !!unsavedChanges[`${selectedUserId}_${trail.id}`];
+            
+            // שימוש בלינקים המותאמים אישית אם קיימים, אחרת בדיפולט
+            const currentKklLink = customLinks[trail.id]?.kklLink || trail.kklLink;
+            const currentReviewLink = customLinks[trail.id]?.reviewLink || trail.reviewLink;
+            const isEditingLinks = editingLinksId === trail.id;
 
             return (
-              <div key={trail.id} className={cardClasses}>
+              <div 
+                key={trail.id} 
+                className={`bg-white rounded-2xl border transition-all duration-200 flex flex-col overflow-hidden relative
+                  ${isDone ? 'border-emerald-400 shadow-md ring-1 ring-emerald-400/20' : 'border-slate-200 shadow-sm hover:shadow-md'}`}
+              >
                 {hasUnsavedChanges && (
                   <div className="absolute top-0 right-0 w-3 h-3 bg-amber-400 rounded-bl-lg shadow-sm" title="שינויים לא שמורים" />
                 )}
@@ -468,7 +542,7 @@ export default function KKLTrackerApp() {
                       {isDone && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
                       {trail.name}
                     </h3>
-                    <span className={badgeClasses}>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getDifficultyColor(trail.difficulty)}`}>
                       {trail.difficulty}
                     </span>
                   </div>
@@ -480,11 +554,11 @@ export default function KKLTrackerApp() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Route className="w-4 h-4 text-slate-400" />
-                      <span>{trail.lengthKm} ק״מ</span>
+                      <span>{trail.lengthKm} ק"מ</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Mountain className="w-4 h-4 text-slate-400" />
-                      <span>{trail.elevationM} מטר טיפוס</span>
+                      <span>{trail.elevationM} מ' טיפוס</span>
                     </div>
                   </div>
 
@@ -507,7 +581,7 @@ export default function KKLTrackerApp() {
                     </div>
                     <div className="flex items-center gap-3">
                       <button 
-                        onClick={() => handleUpdateProgress(trail.id, "ebike", -1)}
+                        onClick={() => handleUpdateProgress(trail.id, 'ebike', -1)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={userProg.ebikeCount === 0}
                       >
@@ -515,7 +589,7 @@ export default function KKLTrackerApp() {
                       </button>
                       <span className="w-4 text-center font-bold text-lg">{userProg.ebikeCount}</span>
                       <button 
-                        onClick={() => handleUpdateProgress(trail.id, "ebike", 1)}
+                        onClick={() => handleUpdateProgress(trail.id, 'ebike', 1)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
                       >
                         <Plus className="w-4 h-4" />
@@ -532,7 +606,7 @@ export default function KKLTrackerApp() {
                     </div>
                     <div className="flex items-center gap-3">
                       <button 
-                        onClick={() => handleUpdateProgress(trail.id, "analog", -1)}
+                        onClick={() => handleUpdateProgress(trail.id, 'analog', -1)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={userProg.analogCount === 0}
                       >
@@ -540,7 +614,7 @@ export default function KKLTrackerApp() {
                       </button>
                       <span className="w-4 text-center font-bold text-lg">{userProg.analogCount}</span>
                       <button 
-                        onClick={() => handleUpdateProgress(trail.id, "analog", 1)}
+                        onClick={() => handleUpdateProgress(trail.id, 'analog', 1)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
                       >
                         <Plus className="w-4 h-4" />
@@ -548,26 +622,72 @@ export default function KKLTrackerApp() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 mt-2">
-                    <a 
-                      href={trail.kklLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      אתר קק״ל
-                    </a>
-                    <a 
-                      href={trail.reviewLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      חוות דעת
-                    </a>
-                  </div>
+                  {/* Links Section with Editing Capability */}
+                  {isEditingLinks ? (
+                    <div className="mt-2 flex flex-col gap-2 p-3 bg-slate-100 rounded-xl border border-slate-200">
+                      <div className="text-xs font-bold text-slate-600 mb-1">עריכת קישורים (נשמר לכולם):</div>
+                      <input 
+                        type="url" 
+                        value={editKklLink} 
+                        onChange={e => setEditKklLink(e.target.value)}
+                        placeholder="קישור קק״ל (או אתר רשמי)..."
+                        className="w-full text-left text-sm p-2 rounded border border-slate-300 outline-none focus:border-emerald-500" dir="ltr"
+                      />
+                      <input 
+                        type="url" 
+                        value={editReviewLink} 
+                        onChange={e => setEditReviewLink(e.target.value)}
+                        placeholder="קישור לחוות דעת / מפה..."
+                        className="w-full text-left text-sm p-2 rounded border border-slate-300 outline-none focus:border-emerald-500" dir="ltr"
+                      />
+                      <div className="flex gap-2 mt-1">
+                        <button 
+                          onClick={() => handleSaveLinks(trail.id)}
+                          className="flex-1 bg-emerald-600 text-white text-sm py-1.5 rounded-lg hover:bg-emerald-700 transition"
+                        >
+                          שמור קישורים
+                        </button>
+                        <button 
+                          onClick={() => setEditingLinksId(null)}
+                          className="flex-1 bg-white border border-slate-300 text-slate-600 text-sm py-1.5 rounded-lg hover:bg-slate-50 transition"
+                        >
+                          ביטול
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 mt-2">
+                      <a 
+                        href={currentKklLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        אתר קק״ל
+                      </a>
+                      <a 
+                        href={currentReviewLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        חוות דעת
+                      </a>
+                      <button 
+                        onClick={() => {
+                          setEditingLinksId(trail.id);
+                          setEditKklLink(currentKklLink);
+                          setEditReviewLink(currentReviewLink);
+                        }}
+                        title="ערוך קישורים למסלול זה"
+                        className="w-10 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors shadow-sm"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
 
                 </div>
               </div>
