@@ -1,9 +1,10 @@
 // @ts-nocheck
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Bike, Mountain, MapPin, ExternalLink, UserPlus, 
   Trophy, Route, Activity, Plus, Minus, Info, 
-  CheckCircle2, Battery, Save, Loader2, Pencil
+  CheckCircle2, Battery, Save, Loader2, Pencil, FilterX,
+  Map as MapIcon, LayoutGrid
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -25,55 +26,160 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Data - Updated with 46 KKL trails (Progress won't be lost for IDs t1-t18)
+// Data - Updated with 46 KKL trails and Coordinates
 const TRAILS = [
-  { id: 't1', name: 'סינגל עירון (ואדי ערה)', region: 'שרון ומרכז', difficulty: 'בינוני', lengthKm: 32, elevationM: 420, popularity: '⭐⭐⭐⭐⭐ מסלול מדהים', kklLink: 'https://www.kkl.org.il/bike/trips/hiron_070825/', reviewLink: 'https://eyarok.org.il/trip/239' },
-  { id: 't2', name: 'השופט - טבעת צהובה', region: 'כרמל ועמקים', difficulty: 'קל', lengthKm: 13, elevationM: 300, popularity: '⭐⭐⭐⭐ מעולה למתחילים, צל', kklLink: 'https://www.kkl.org.il/bike/trips/', reviewLink: 'https://eyarok.org.il/trip/202' },
-  { id: 't3', name: 'השופט - טבעת כחולה', region: 'כרמל ועמקים', difficulty: 'בינוני', lengthKm: 17, elevationM: 350, popularity: '⭐⭐⭐⭐ דורש כושר', kklLink: 'https://www.kkl.org.il/bike/trips/', reviewLink: 'https://eyarok.org.il/trip/202' },
-  { id: 't4', name: 'רמת הנדיב (משולב)', region: 'רמת הנדיב', difficulty: 'קל-בינוני', lengthKm: 15, elevationM: 250, popularity: '⭐⭐⭐⭐ נופים לים', kklLink: 'https://www.ramat-hanadiv.org.il/פארק-הטבע/שבילי-האופניים/', reviewLink: 'https://eyarok.org.il/trip/198' },
-  { id: 't5', name: 'בן שמן - הרצל (כחול)', region: 'ירושלים ויהודה', difficulty: 'קל', lengthKm: 10.5, elevationM: 180, popularity: '⭐⭐⭐⭐ הקלאסיקה', kklLink: 'https://kkl-jnf.org/tourism-and-recreation/recommended_trips_and_tracks/ben-shemen-routes/', reviewLink: 'https://eyarok.org.il/trip/221' },
-  { id: 't6', name: 'בן שמן - ענבה (אדום)', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 24, elevationM: 450, popularity: '⭐⭐⭐⭐⭐ טכני וקשוח', kklLink: 'https://kkl-jnf.org/tourism-and-recreation/recommended_trips_and_tracks/ben-shemen-routes/', reviewLink: 'https://eyarok.org.il/trip/221' },
-  { id: 't7', name: 'סינגל בארי (האדום)', region: 'דרום', difficulty: 'קל', lengthKm: 18, elevationM: 200, popularity: '⭐⭐⭐⭐ דרום אדום', kklLink: 'https://www.kkl.org.il/bike/trips/2000/', reviewLink: 'https://eyarok.org.il/trip/255' },
-  { id: 't8', name: 'סינגל גברעם', region: 'דרום', difficulty: 'קל', lengthKm: 20, elevationM: 160, popularity: '⭐⭐⭐ גבעות כורכר', kklLink: 'https://www.kkl.org.il/bike/trips/1997/', reviewLink: 'https://eyarok.org.il/trip/260' },
-  { id: 't9', name: 'סינגל שמשית', region: 'צפון', difficulty: 'קל', lengthKm: 12, elevationM: 150, popularity: 'קצר וקולע, מתאים גם לילדים.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/205' },
-  { id: 't10', name: 'סינגל סוללים', region: 'צפון', difficulty: 'קל', lengthKm: 14, elevationM: 200, popularity: 'מצוין לשילוב עם שמשית.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/206' },
-  { id: 't11', name: 'סינגל אלון הגליל', region: 'צפון', difficulty: 'בינוני', lengthKm: 22, elevationM: 400, popularity: 'עליות משמעותיות, נוף גלילי.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/207' },
-  { id: 't12', name: 'חוף הכרמל (האדום)', region: 'כרמל ועמקים', difficulty: 'קשה', lengthKm: 18, elevationM: 420, popularity: '⭐⭐⭐⭐ חורש טבעי', kklLink: 'https://www.kkl.org.il/bike/trips/2907/', reviewLink: 'https://eyarok.org.il/trip/210' },
-  { id: 't13', name: 'סינגל ביריה (לימונים)', region: 'צפון', difficulty: 'בינוני', lengthKm: 20, elevationM: 500, popularity: '⭐⭐⭐⭐ שלוש לולאות מעל צפת', kklLink: 'https://www.kkl.org.il/bike/trips/2994/', reviewLink: 'https://eyarok.org.il/trip/190' },
-  { id: 't14', name: 'סינגל גורל', region: 'דרום', difficulty: 'בינוני', lengthKm: 30, elevationM: 400, popularity: 'נוף מדברי עוצר נשימה.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/270' },
-  { id: 't15', name: 'סינגל רוחמה', region: 'דרום', difficulty: 'קל', lengthKm: 18, elevationM: 200, popularity: 'בתרונות רוחמה היפים.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/265' },
-  { id: 't16', name: 'משמר העמק', region: 'כרמל ועמקים', difficulty: 'קשה', lengthKm: 32, elevationM: 800, popularity: 'מבחן כושר אמיתי ביער קסום.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/209' },
-  { id: 't17', name: 'סינגל גלבוע', region: 'צפון', difficulty: 'קשה', lengthKm: 32, elevationM: 900, popularity: '⭐⭐⭐⭐ תופר את רכס הגלבוע', kklLink: 'https://www.kkl.org.il/bike/trips/2188/', reviewLink: 'https://eyarok.org.il/trip/204' },
-  { id: 't18', name: 'סינגל יתיר', region: 'דרום', difficulty: 'קשה', lengthKm: 32, elevationM: 650, popularity: 'היער הנטוע הגדול בישראל.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/280' },
-  { id: 't19', name: 'סינגל חניתה', region: 'צפון', difficulty: 'בינוני', lengthKm: 22, elevationM: 550, popularity: '⭐⭐⭐⭐ ארוך וזורם', kklLink: 'https://www.kkl.org.il/bike/trips/2755/', reviewLink: '' },
-  { id: 't20', name: 'סינגל נפתלי', region: 'צפון', difficulty: 'קשה', lengthKm: 28, elevationM: 800, popularity: '⭐⭐⭐⭐⭐ תצפית מדהימה', kklLink: 'https://www.kkl.org.il/bike/trips/2339/', reviewLink: '' },
-  { id: 't21', name: 'יערות ציפורי', region: 'צפון', difficulty: 'בינוני', lengthKm: 30, elevationM: 600, popularity: '⭐⭐⭐⭐ כולל פאמפטרק', kklLink: 'https://www.kkl.org.il/bike/trips/3/', reviewLink: '' },
-  { id: 't22', name: 'סינגל חנתון', region: 'צפון', difficulty: 'קל', lengthKm: 15, elevationM: 300, popularity: '⭐⭐⭐⭐ מומלץ למתחילים', kklLink: 'https://www.kkl.org.il/bike/trips/hamovil/', reviewLink: '' },
-  { id: 't23', name: 'כפר החורש–יפיע', region: 'צפון', difficulty: 'בינוני', lengthKm: 18, elevationM: 400, popularity: '⭐⭐⭐ נוף גלילי', kklLink: 'https://www.kkl.org.il/bike/trips/2177/', reviewLink: '' },
-  { id: 't24', name: 'אנדורו יער שגב', region: 'צפון', difficulty: 'מומחה', lengthKm: 12, elevationM: 450, popularity: '⭐⭐⭐⭐⭐ ירידה מהירה', kklLink: 'https://www.kkl.org.il/bike/trips/2122/', reviewLink: '' },
-  { id: 't25', name: 'חזון (גליל תחתון)', region: 'צפון', difficulty: 'בינוני', lengthKm: 30, elevationM: 700, popularity: '⭐⭐⭐⭐ דורש כושר', kklLink: 'https://bike.co.il/trip-edu-hazon-singel-kkl/', reviewLink: '' },
-  { id: 't26', name: 'סינגל מרום גולן', region: 'צפון', difficulty: 'בינוני', lengthKm: 10, elevationM: 250, popularity: '⭐⭐⭐ יער האלונים', kklLink: 'https://www.kkl.org.il/bike/trips/2620/', reviewLink: '' },
-  { id: 't27', name: 'סינגל משגב', region: 'כרמל ועמקים', difficulty: 'קשה', lengthKm: 25, elevationM: 700, popularity: '⭐⭐⭐⭐ נופים מרהיבים', kklLink: 'https://www.kkl.org.il/bike/trips/2122/', reviewLink: '' },
-  { id: 't28', name: 'שביל אלון הגליל (כינרת)', region: 'צפון', difficulty: 'בינוני', lengthKm: 15, elevationM: 300, popularity: '⭐⭐⭐⭐ מול הכנרת', kklLink: 'https://www.kkl.org.il/bike/trips/2006/', reviewLink: '' },
-  { id: 't29', name: 'סינגל יער שוויץ', region: 'צפון', difficulty: 'קל', lengthKm: 14, elevationM: 180, popularity: '⭐⭐⭐⭐ נוף כנרת', kklLink: 'https://www.kkl.org.il/bike/trips/2161/', reviewLink: '' },
-  { id: 't30', name: 'סינגל יער שוהם', region: 'שרון ומרכז', difficulty: 'קל', lengthKm: 15, elevationM: 200, popularity: '⭐⭐⭐ קרוב למרכז', kklLink: 'https://www.kkl.org.il/bike/trips/2126/', reviewLink: '' },
-  { id: 't31', name: 'שביל הרכסים (IMBA)', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 40, elevationM: 1100, popularity: '⭐⭐⭐⭐⭐ מסע מרתק', kklLink: 'https://www.kkl.org.il/bike/trips/2013/', reviewLink: '' },
-  { id: 't32', name: 'חדיד (ירוק) — בן שמן', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 11, elevationM: 280, popularity: '⭐⭐⭐⭐ הפתעות טכניות', kklLink: 'https://kkl-jnf.org/tourism-and-recreation/recommended_trips_and_tracks/ben-shemen-routes/', reviewLink: '' },
-  { id: 't33', name: 'סינגל עין ראפה', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 29, elevationM: 950, popularity: '⭐⭐⭐⭐⭐ פופולרי', kklLink: 'https://www.kkl.org.il/bike/trips/2082/', reviewLink: '' },
-  { id: 't34', name: 'פארק בריטניה', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 22, elevationM: 600, popularity: '⭐⭐⭐⭐⭐ נוף מרהיב', kklLink: 'https://www.kkl.org.il/bike/trips/1999/', reviewLink: '' },
-  { id: 't35', name: 'סינגל זכריה', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 14, elevationM: 350, popularity: '⭐⭐⭐ יער ישעי', kklLink: 'https://www.kkl.org.il/bike/trips/1968/', reviewLink: '' },
-  { id: 't36', name: 'סינגל חרובית', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 12, elevationM: 380, popularity: '⭐⭐⭐⭐ חגיגת אדרנלין', kklLink: 'https://www.kkl.org.il/bike/trips/1969/', reviewLink: '' },
-  { id: 't37', name: 'פארק קנדה אילון', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 20, elevationM: 450, popularity: '⭐⭐⭐⭐ נופים מרהיבים', kklLink: 'https://www.kkl.org.il/bike/trips/2005/', reviewLink: '' },
-  { id: 't38', name: 'שביל עדולם–צרפת', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 35, elevationM: 850, popularity: '⭐⭐⭐⭐ מאתגר פיזית', kklLink: 'https://www.kkl.org.il/bike/trips/2004/', reviewLink: '' },
-  { id: 't39', name: 'סינגל משואה', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 18, elevationM: 400, popularity: '⭐⭐⭐⭐ מסלול מחודש', kklLink: 'https://www.kkl.org.il/bike/trips/2928/', reviewLink: '' },
-  { id: 't40', name: 'שבילי יער הקדושים', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 20, elevationM: 450, popularity: '⭐⭐⭐⭐ פארק יפיפה', kklLink: 'https://www.kkl.org.il/bike/trips/2152/', reviewLink: '' },
-  { id: 't41', name: 'סינגל קנים', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 18, elevationM: 600, popularity: '⭐⭐⭐ מאתגר פיזית וטכנית', kklLink: 'https://www.kkl.org.il/bike/trips/2003/', reviewLink: '' },
-  { id: 't42', name: 'עין קובי (פארק בגין)', region: 'ירושלים ויהודה', difficulty: 'קל', lengthKm: 8, elevationM: 150, popularity: '⭐⭐⭐ מעגלי חדש', kklLink: 'https://www.kkl.org.il/bike/trips/8793/', reviewLink: '' },
-  { id: 't43', name: 'סינגל בארי — הכחול', region: 'דרום', difficulty: 'בינוני', lengthKm: 25, elevationM: 320, popularity: '⭐⭐⭐ יערות ונחלים', kklLink: 'https://www.kkl.org.il/bike/trips/2002/', reviewLink: '' },
-  { id: 't44', name: 'סינגל אסף-כיסופים', region: 'דרום', difficulty: 'קל', lengthKm: 22, elevationM: 180, popularity: '⭐⭐⭐⭐ רכיבה זורמת', kklLink: 'https://www.kkl.org.il/bike/trips/3004/', reviewLink: '' },
-  { id: 't45', name: 'שרשרת (בתרונות גרר)', region: 'דרום', difficulty: 'קל', lengthKm: 31.5, elevationM: 350, popularity: '⭐⭐⭐⭐ שלוש לולאות', kklLink: 'https://www.kkl.org.il/bike/trips/2796/', reviewLink: '' },
-  { id: 't46', name: 'סינגלים פארק תמנע', region: 'דרום', difficulty: 'בינוני', lengthKm: 20, elevationM: 450, popularity: '⭐⭐⭐⭐ נוף מדברי', kklLink: 'https://www.kkl.org.il/bike/trips/2576/', reviewLink: '' }
+  { id: 't1', name: 'סינגל עירון (ואדי ערה)', region: 'שרון ומרכז', difficulty: 'בינוני', lengthKm: 32, elevationM: 420, popularity: '⭐⭐⭐⭐⭐ מסלול מדהים', kklLink: 'https://www.kkl.org.il/bike/trips/hiron_070825/', reviewLink: 'https://eyarok.org.il/trip/239', coords: [32.484, 35.034] },
+  { id: 't2', name: 'השופט - טבעת צהובה', region: 'כרמל ועמקים', difficulty: 'קל', lengthKm: 13, elevationM: 300, popularity: '⭐⭐⭐⭐ מעולה למתחילים, צל', kklLink: 'https://www.kkl.org.il/bike/trips/', reviewLink: 'https://eyarok.org.il/trip/202', coords: [32.61, 35.09] },
+  { id: 't3', name: 'השופט - טבעת כחולה', region: 'כרמל ועמקים', difficulty: 'בינוני', lengthKm: 17, elevationM: 350, popularity: '⭐⭐⭐⭐ דורש כושר', kklLink: 'https://www.kkl.org.il/bike/trips/', reviewLink: 'https://eyarok.org.il/trip/202', coords: [32.615, 35.09] },
+  { id: 't4', name: 'רמת הנדיב (משולב)', region: 'רמת הנדיב', difficulty: 'קל-בינוני', lengthKm: 15, elevationM: 250, popularity: '⭐⭐⭐⭐ נופים לים', kklLink: 'https://www.ramat-hanadiv.org.il/פארק-הטבע/שבילי-האופניים/', reviewLink: 'https://eyarok.org.il/trip/198', coords: [32.55, 34.94] },
+  { id: 't5', name: 'בן שמן - הרצל (כחול)', region: 'ירושלים ויהודה', difficulty: 'קל', lengthKm: 10.5, elevationM: 180, popularity: '⭐⭐⭐⭐ הקלאסיקה', kklLink: 'https://kkl-jnf.org/tourism-and-recreation/recommended_trips_and_tracks/ben-shemen-routes/', reviewLink: 'https://eyarok.org.il/trip/221', coords: [31.95, 34.95] },
+  { id: 't6', name: 'בן שמן - ענבה (אדום)', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 24, elevationM: 450, popularity: '⭐⭐⭐⭐⭐ טכני וקשוח', kklLink: 'https://kkl-jnf.org/tourism-and-recreation/recommended_trips_and_tracks/ben-shemen-routes/', reviewLink: 'https://eyarok.org.il/trip/221', coords: [31.94, 34.96] },
+  { id: 't7', name: 'סינגל בארי (האדום)', region: 'דרום', difficulty: 'קל', lengthKm: 18, elevationM: 200, popularity: '⭐⭐⭐⭐ דרום אדום', kklLink: 'https://www.kkl.org.il/bike/trips/2000/', reviewLink: 'https://eyarok.org.il/trip/255', coords: [31.42, 34.49] },
+  { id: 't8', name: 'סינגל גברעם', region: 'דרום', difficulty: 'קל', lengthKm: 20, elevationM: 160, popularity: '⭐⭐⭐ גבעות כורכר', kklLink: 'https://www.kkl.org.il/bike/trips/1997/', reviewLink: 'https://eyarok.org.il/trip/260', coords: [31.58, 34.61] },
+  { id: 't9', name: 'סינגל שמשית', region: 'צפון', difficulty: 'קל', lengthKm: 12, elevationM: 150, popularity: 'קצר וקולע, מתאים גם לילדים.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/205', coords: [32.74, 35.25] },
+  { id: 't10', name: 'סינגל סוללים', region: 'צפון', difficulty: 'קל', lengthKm: 14, elevationM: 200, popularity: 'מצוין לשילוב עם שמשית.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/206', coords: [32.75, 35.24] },
+  { id: 't11', name: 'סינגל אלון הגליל', region: 'צפון', difficulty: 'בינוני', lengthKm: 22, elevationM: 400, popularity: 'עליות משמעותיות, נוף גלילי.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/207', coords: [32.75, 35.22] },
+  { id: 't12', name: 'חוף הכרמל (האדום)', region: 'כרמל ועמקים', difficulty: 'קשה', lengthKm: 18, elevationM: 420, popularity: '⭐⭐⭐⭐ חורש טבעי', kklLink: 'https://www.kkl.org.il/bike/trips/2907/', reviewLink: 'https://eyarok.org.il/trip/210', coords: [32.64, 34.97] },
+  { id: 't13', name: 'סינגל ביריה (לימונים)', region: 'צפון', difficulty: 'בינוני', lengthKm: 20, elevationM: 500, popularity: '⭐⭐⭐⭐ שלוש לולאות מעל צפת', kklLink: 'https://www.kkl.org.il/bike/trips/2994/', reviewLink: 'https://eyarok.org.il/trip/190', coords: [32.99, 35.49] },
+  { id: 't14', name: 'סינגל גורל', region: 'דרום', difficulty: 'בינוני', lengthKm: 30, elevationM: 400, popularity: 'נוף מדברי עוצר נשימה.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/270', coords: [31.33, 34.82] },
+  { id: 't15', name: 'סינגל רוחמה', region: 'דרום', difficulty: 'קל', lengthKm: 18, elevationM: 200, popularity: 'בתרונות רוחמה היפים.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/265', coords: [31.49, 34.69] },
+  { id: 't16', name: 'משמר העמק', region: 'כרמל ועמקים', difficulty: 'קשה', lengthKm: 32, elevationM: 800, popularity: 'מבחן כושר אמיתי ביער קסום.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/209', coords: [32.61, 35.13] },
+  { id: 't17', name: 'סינגל גלבוע', region: 'צפון', difficulty: 'קשה', lengthKm: 32, elevationM: 900, popularity: '⭐⭐⭐⭐ תופר את רכס הגלבוע', kklLink: 'https://www.kkl.org.il/bike/trips/2188/', reviewLink: 'https://eyarok.org.il/trip/204', coords: [32.51, 35.40] },
+  { id: 't18', name: 'סינגל יתיר', region: 'דרום', difficulty: 'קשה', lengthKm: 32, elevationM: 650, popularity: 'היער הנטוע הגדול בישראל.', kklLink: 'https://www.kkl.org.il/bike/', reviewLink: 'https://eyarok.org.il/trip/280', coords: [31.35, 35.05] },
+  { id: 't19', name: 'סינגל חניתה', region: 'צפון', difficulty: 'בינוני', lengthKm: 22, elevationM: 550, popularity: '⭐⭐⭐⭐ ארוך וזורם', kklLink: 'https://www.kkl.org.il/bike/trips/2755/', reviewLink: '', coords: [33.08, 35.17] },
+  { id: 't20', name: 'סינגל נפתלי', region: 'צפון', difficulty: 'קשה', lengthKm: 28, elevationM: 800, popularity: '⭐⭐⭐⭐⭐ תצפית מדהימה', kklLink: 'https://www.kkl.org.il/bike/trips/2339/', reviewLink: '', coords: [33.15, 35.53] },
+  { id: 't21', name: 'יערות ציפורי', region: 'צפון', difficulty: 'בינוני', lengthKm: 30, elevationM: 600, popularity: '⭐⭐⭐⭐ כולל פאמפטרק', kklLink: 'https://www.kkl.org.il/bike/trips/3/', reviewLink: '', coords: [32.75, 35.26] },
+  { id: 't22', name: 'סינגל חנתון', region: 'צפון', difficulty: 'קל', lengthKm: 15, elevationM: 300, popularity: '⭐⭐⭐⭐ מומלץ למתחילים', kklLink: 'https://www.kkl.org.il/bike/trips/hamovil/', reviewLink: '', coords: [32.78, 35.23] },
+  { id: 't23', name: 'כפר החורש–יפיע', region: 'צפון', difficulty: 'בינוני', lengthKm: 18, elevationM: 400, popularity: '⭐⭐⭐ נוף גלילי', kklLink: 'https://www.kkl.org.il/bike/trips/2177/', reviewLink: '', coords: [32.70, 35.26] },
+  { id: 't24', name: 'אנדורו יער שגב', region: 'צפון', difficulty: 'מומחה', lengthKm: 12, elevationM: 450, popularity: '⭐⭐⭐⭐⭐ ירידה מהירה', kklLink: 'https://www.kkl.org.il/bike/trips/2122/', reviewLink: '', coords: [32.85, 35.24] },
+  { id: 't25', name: 'חזון (גליל תחתון)', region: 'צפון', difficulty: 'בינוני', lengthKm: 30, elevationM: 700, popularity: '⭐⭐⭐⭐ דורש כושר', kklLink: 'https://bike.co.il/trip-edu-hazon-singel-kkl/', reviewLink: '', coords: [32.89, 35.41] },
+  { id: 't26', name: 'סינגל מרום גולן', region: 'צפון', difficulty: 'בינוני', lengthKm: 10, elevationM: 250, popularity: '⭐⭐⭐ יער האלונים', kklLink: 'https://www.kkl.org.il/bike/trips/2620/', reviewLink: '', coords: [33.13, 35.77] },
+  { id: 't27', name: 'סינגל משגב', region: 'כרמל ועמקים', difficulty: 'קשה', lengthKm: 25, elevationM: 700, popularity: '⭐⭐⭐⭐ נופים מרהיבים', kklLink: 'https://www.kkl.org.il/bike/trips/2122/', reviewLink: '', coords: [32.87, 35.25] },
+  { id: 't28', name: 'שביל אלון הגליל (כינרת)', region: 'צפון', difficulty: 'בינוני', lengthKm: 15, elevationM: 300, popularity: '⭐⭐⭐⭐ מול הכנרת', kklLink: 'https://www.kkl.org.il/bike/trips/2006/', reviewLink: '', coords: [32.78, 35.53] },
+  { id: 't29', name: 'סינגל יער שוויץ', region: 'צפון', difficulty: 'קל', lengthKm: 14, elevationM: 180, popularity: '⭐⭐⭐⭐ נוף כנרת', kklLink: 'https://www.kkl.org.il/bike/trips/2161/', reviewLink: '', coords: [32.76, 35.53] },
+  { id: 't30', name: 'סינגל יער שוהם', region: 'שרון ומרכז', difficulty: 'קל', lengthKm: 15, elevationM: 200, popularity: '⭐⭐⭐ קרוב למרכז', kklLink: 'https://www.kkl.org.il/bike/trips/2126/', reviewLink: '', coords: [31.98, 34.95] },
+  { id: 't31', name: 'שביל הרכסים (IMBA)', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 40, elevationM: 1100, popularity: '⭐⭐⭐⭐⭐ מסע מרתק', kklLink: 'https://www.kkl.org.il/bike/trips/2013/', reviewLink: '', coords: [31.75, 35.12] },
+  { id: 't32', name: 'חדיד (ירוק) — בן שמן', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 11, elevationM: 280, popularity: '⭐⭐⭐⭐ הפתעות טכניות', kklLink: 'https://kkl-jnf.org/tourism-and-recreation/recommended_trips_and_tracks/ben-shemen-routes/', reviewLink: '', coords: [31.97, 34.96] },
+  { id: 't33', name: 'סינגל עין ראפה', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 29, elevationM: 950, popularity: '⭐⭐⭐⭐⭐ פופולרי', kklLink: 'https://www.kkl.org.il/bike/trips/2082/', reviewLink: '', coords: [31.79, 35.10] },
+  { id: 't34', name: 'פארק בריטניה', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 22, elevationM: 600, popularity: '⭐⭐⭐⭐⭐ נוף מרהיב', kklLink: 'https://www.kkl.org.il/bike/trips/1999/', reviewLink: '', coords: [31.68, 34.92] },
+  { id: 't35', name: 'סינגל זכריה', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 14, elevationM: 350, popularity: '⭐⭐⭐ יער ישעי', kklLink: 'https://www.kkl.org.il/bike/trips/1968/', reviewLink: '', coords: [31.72, 34.93] },
+  { id: 't36', name: 'סינגל חרובית', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 12, elevationM: 380, popularity: '⭐⭐⭐⭐ חגיגת אדרנלין', kklLink: 'https://www.kkl.org.il/bike/trips/1969/', reviewLink: '', coords: [31.73, 34.84] },
+  { id: 't37', name: 'פארק קנדה אילון', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 20, elevationM: 450, popularity: '⭐⭐⭐⭐ נופים מרהיבים', kklLink: 'https://www.kkl.org.il/bike/trips/2005/', reviewLink: '', coords: [31.83, 34.99] },
+  { id: 't38', name: 'שביל עדולם–צרפת', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 35, elevationM: 850, popularity: '⭐⭐⭐⭐ מאתגר פיזית', kklLink: 'https://www.kkl.org.il/bike/trips/2004/', reviewLink: '', coords: [31.64, 34.95] },
+  { id: 't39', name: 'סינגל משואה', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 18, elevationM: 400, popularity: '⭐⭐⭐⭐ מסלול מחודש', kklLink: 'https://www.kkl.org.il/bike/trips/2928/', reviewLink: '', coords: [31.65, 34.91] },
+  { id: 't40', name: 'שבילי יער הקדושים', region: 'ירושלים ויהודה', difficulty: 'בינוני', lengthKm: 20, elevationM: 450, popularity: '⭐⭐⭐⭐ פארק יפיפה', kklLink: 'https://www.kkl.org.il/bike/trips/2152/', reviewLink: '', coords: [31.78, 35.04] },
+  { id: 't41', name: 'סינגל קנים', region: 'ירושלים ויהודה', difficulty: 'קשה', lengthKm: 18, elevationM: 600, popularity: '⭐⭐⭐ מאתגר פיזית וטכנית', kklLink: 'https://www.kkl.org.il/bike/trips/2003/', reviewLink: '', coords: [31.69, 34.92] },
+  { id: 't42', name: 'עין קובי (פארק בגין)', region: 'ירושלים ויהודה', difficulty: 'קל', lengthKm: 8, elevationM: 150, popularity: '⭐⭐⭐ מעגלי חדש', kklLink: 'https://www.kkl.org.il/bike/trips/8793/', reviewLink: '', coords: [31.73, 35.11] },
+  { id: 't43', name: 'סינגל בארי — הכחול', region: 'דרום', difficulty: 'בינוני', lengthKm: 25, elevationM: 320, popularity: '⭐⭐⭐ יערות ונחלים', kklLink: 'https://www.kkl.org.il/bike/trips/2002/', reviewLink: '', coords: [31.425, 34.49] },
+  { id: 't44', name: 'סינגל אסף-כיסופים', region: 'דרום', difficulty: 'קל', lengthKm: 22, elevationM: 180, popularity: '⭐⭐⭐⭐ רכיבה זורמת', kklLink: 'https://www.kkl.org.il/bike/trips/3004/', reviewLink: '', coords: [31.37, 34.42] },
+  { id: 't45', name: 'שרשרת (בתרונות גרר)', region: 'דרום', difficulty: 'קל', lengthKm: 31.5, elevationM: 350, popularity: '⭐⭐⭐⭐ שלוש לולאות', kklLink: 'https://www.kkl.org.il/bike/trips/2796/', reviewLink: '', coords: [31.37, 34.61] },
+  { id: 't46', name: 'סינגלים פארק תמנע', region: 'דרום', difficulty: 'בינוני', lengthKm: 20, elevationM: 450, popularity: '⭐⭐⭐⭐ נוף מדברי', kklLink: 'https://www.kkl.org.il/bike/trips/2576/', reviewLink: '', coords: [29.77, 34.98] }
 ];
+
+// Component to handle dynamic Map rendering
+const MapView = ({ trails, getProgressForTrail, setViewMode, setSearchQuery }) => {
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadLeaflet = async () => {
+      if (!document.getElementById('leaflet-css')) {
+        const link = document.createElement('link');
+        link.id = 'leaflet-css';
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+      }
+
+      if (!window.L) {
+        await new Promise(resolve => {
+          const script = document.createElement('script');
+          script.id = 'leaflet-js';
+          script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+          script.onload = resolve;
+          document.head.appendChild(script);
+        });
+      }
+
+      if (!isMounted) return;
+
+      if (!mapInstance.current && mapRef.current) {
+        mapInstance.current = window.L.map(mapRef.current).setView([31.7, 34.9], 8);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap'
+        }).addTo(mapInstance.current);
+      }
+
+      if (mapInstance.current) {
+        // Clear existing markers
+        mapInstance.current.eachLayer((layer) => {
+          if (layer instanceof window.L.Marker) {
+            mapInstance.current.removeLayer(layer);
+          }
+        });
+
+        // Add new markers
+        trails.forEach(trail => {
+          const userProg = getProgressForTrail(trail.id);
+          const isDone = (userProg.ebikeCount + userProg.analogCount) > 0;
+          
+          const bgColor = isDone ? '#10b981' : '#f43f5e';
+          const iconSvg = isDone 
+            ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;"><polyline points="20 6 9 17 4 12"></polyline></svg>` 
+            : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h2"/></svg>`;
+            
+          const customIcon = window.L.divIcon({
+            className: 'custom-leaflet-icon',
+            html: `<div style="background-color: ${bgColor}; width: 28px; height: 28px; border-radius: 50%; border: 3px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">${iconSvg}</div>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+            popupAnchor: [0, -14]
+          });
+
+          const marker = window.L.marker(trail.coords, { icon: customIcon }).addTo(mapInstance.current);
+          
+          const popupContent = document.createElement('div');
+          popupContent.className = 'text-right font-sans';
+          popupContent.dir = 'rtl';
+          popupContent.innerHTML = `
+            <h3 class="font-bold text-base mb-1 flex items-center gap-1.5">
+              ${isDone ? '<span style="color:#10b981">✓</span>' : ''} ${trail.name}
+            </h3>
+            <p class="text-xs text-slate-600 mb-2">${trail.region} | <span class="font-semibold">${trail.difficulty}</span></p>
+            <p class="text-xs mb-3 font-medium">${trail.lengthKm} ק"מ | ${trail.elevationM} מ' טיפוס</p>
+            <div class="flex gap-2 border-t pt-2 mt-2 border-slate-100">
+              <button id="btn-${trail.id}" class="text-xs font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-md hover:bg-emerald-100 transition flex-1 text-center cursor-pointer">
+                עדכן רכיבה במסלול
+              </button>
+            </div>
+          `;
+
+          marker.bindPopup(popupContent);
+          
+          marker.on('popupopen', () => {
+            const btn = document.getElementById(`btn-${trail.id}`);
+            if (btn) {
+              btn.onclick = () => {
+                setViewMode('grid');
+                setSearchQuery(trail.name);
+              };
+            }
+          });
+        });
+      }
+    };
+
+    loadLeaflet();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [trails, getProgressForTrail, setViewMode, setSearchQuery]);
+
+  return <div ref={mapRef} className="w-full h-full rounded-xl z-0" style={{ zIndex: 0 }}></div>;
+};
 
 export default function KKLTrackerApp() {
   const [isLoading, setIsLoading] = useState(true);
@@ -81,7 +187,7 @@ export default function KKLTrackerApp() {
   const [authUser, setAuthUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [progressData, setProgressData] = useState([]);
-  const [customLinks, setCustomLinks] = useState({}); // שמירת הלינקים שהמשתמשים עדכנו
+  const [customLinks, setCustomLinks] = useState({});
   
   const [selectedUserId, setSelectedUserId] = useState('');
   const [newUserName, setNewUserName] = useState('');
@@ -90,7 +196,8 @@ export default function KKLTrackerApp() {
   const [unsavedChanges, setUnsavedChanges] = useState({});
   const [isSaving, setIsSaving] = useState(false);
 
-  // States for Link Editing
+  // States for View Mode & Links
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'map'
   const [editingLinksId, setEditingLinksId] = useState(null);
   const [editKklLink, setEditKklLink] = useState('');
   const [editReviewLink, setEditReviewLink] = useState('');
@@ -98,6 +205,8 @@ export default function KKLTrackerApp() {
   // Filters
   const [filterRegion, setFilterRegion] = useState('הכל');
   const [filterDifficulty, setFilterDifficulty] = useState('הכל');
+  const [filterLength, setFilterLength] = useState('הכל'); 
+  const [filterStatus, setFilterStatus] = useState('הכל'); 
   const [searchQuery, setSearchQuery] = useState('');
 
   const usersRef = collection(db, 'kkl_users');
@@ -170,7 +279,6 @@ export default function KKLTrackerApp() {
       setIsFetching(false);
     });
 
-    // האזנה בזמן אמת ללינקים מותאמים אישית
     const unsubLinks = onSnapshot(linksRef, (snapshot) => {
       const fetchedLinks = {};
       snapshot.docs.forEach(doc => {
@@ -277,7 +385,6 @@ export default function KKLTrackerApp() {
     }
   };
 
-  // שמירת לינקים חדשים למסד הנתונים
   const handleSaveLinks = async (trailId) => {
     try {
       setIsSaving(true);
@@ -291,6 +398,22 @@ export default function KKLTrackerApp() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const getProgressForTrail = (trailId) => {
+    const progressDocId = `${selectedUserId}_${trailId}`;
+    if (unsavedChanges[progressDocId]) {
+      return unsavedChanges[progressDocId];
+    }
+    return progressData.find(p => p.id === progressDocId) || { id: progressDocId, userId: selectedUserId, trailId: trailId, ebikeCount: 0, analogCount: 0 };
+  };
+
+  const handleClearFilters = () => {
+    setFilterRegion('הכל');
+    setFilterDifficulty('הכל');
+    setFilterLength('הכל');
+    setFilterStatus('הכל');
+    setSearchQuery('');
   };
 
   const stats = useMemo(() => {
@@ -331,17 +454,19 @@ export default function KKLTrackerApp() {
       const matchRegion = filterRegion === 'הכל' || t.region === filterRegion;
       const matchDifficulty = filterDifficulty === 'הכל' || t.difficulty.includes(filterDifficulty);
       const matchSearch = t.name.includes(searchQuery) || t.popularity.includes(searchQuery);
-      return matchRegion && matchDifficulty && matchSearch;
-    });
-  }, [filterRegion, filterDifficulty, searchQuery]);
 
-  const getProgressForTrail = (trailId) => {
-    const progressDocId = `${selectedUserId}_${trailId}`;
-    if (unsavedChanges[progressDocId]) {
-      return unsavedChanges[progressDocId];
-    }
-    return progressData.find(p => p.id === progressDocId) || { id: progressDocId, userId: selectedUserId, trailId: trailId, ebikeCount: 0, analogCount: 0 };
-  };
+      let matchLength = true;
+      if (filterLength === 'קצר') matchLength = t.lengthKm <= 15;
+      else if (filterLength === 'בינוני') matchLength = t.lengthKm > 15 && t.lengthKm <= 30;
+      else if (filterLength === 'ארוך') matchLength = t.lengthKm > 30;
+
+      const userProg = getProgressForTrail(t.id);
+      const isDone = (userProg.ebikeCount + userProg.analogCount) > 0;
+      const matchStatus = filterStatus === 'הכל' || (filterStatus === 'בוצע' && isDone) || (filterStatus === 'לא בוצע' && !isDone);
+
+      return matchRegion && matchDifficulty && matchSearch && matchLength && matchStatus;
+    });
+  }, [filterRegion, filterDifficulty, searchQuery, filterLength, filterStatus, progressData, unsavedChanges, selectedUserId]);
 
   const getDifficultyColor = (diff) => {
     if (diff.includes('קל')) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
@@ -438,7 +563,7 @@ export default function KKLTrackerApp() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
         
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <div className="flex items-center gap-2 mb-6">
@@ -477,10 +602,33 @@ export default function KKLTrackerApp() {
           </div>
         </section>
 
-        <section className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex w-full md:w-auto gap-2">
+        {/* Filters Section */}
+        <section className="flex flex-col md:flex-row flex-wrap gap-4 items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex flex-wrap flex-1 gap-2 w-full md:w-auto">
+            
             <select 
-              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 md:w-auto cursor-pointer"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 min-w-[110px] cursor-pointer"
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
+            >
+              <option value="הכל">כל הסטטוסים</option>
+              <option value="בוצע">✅ בוצעו</option>
+              <option value="לא בוצע">⏳ לא בוצעו</option>
+            </select>
+
+            <select 
+              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 min-w-[110px] cursor-pointer"
+              value={filterLength}
+              onChange={e => setFilterLength(e.target.value)}
+            >
+              <option value="הכל">כל האורכים</option>
+              <option value="קצר">עד 15 ק"מ</option>
+              <option value="בינוני">15-30 ק"מ</option>
+              <option value="ארוך">מעל 30 ק"מ</option>
+            </select>
+
+            <select 
+              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 min-w-[110px] cursor-pointer"
               value={filterRegion}
               onChange={e => setFilterRegion(e.target.value)}
             >
@@ -491,7 +639,7 @@ export default function KKLTrackerApp() {
             </select>
             
             <select 
-              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 md:w-auto cursor-pointer"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm flex-1 min-w-[110px] cursor-pointer"
               value={filterDifficulty}
               onChange={e => setFilterDifficulty(e.target.value)}
             >
@@ -501,9 +649,18 @@ export default function KKLTrackerApp() {
               <option value="קשה">קשה</option>
               <option value="מומחה">מומחה</option>
             </select>
+
+            <button 
+              onClick={handleClearFilters}
+              className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-sm text-slate-600 transition-colors shrink-0"
+              title="נקה פילטרים"
+            >
+              <FilterX className="w-4 h-4" />
+              נקה
+            </button>
           </div>
 
-          <div className="w-full md:w-72 relative">
+          <div className="w-full md:w-72 relative shrink-0">
             <input 
               type="text" 
               placeholder="חיפוש סינגל..." 
@@ -515,185 +672,224 @@ export default function KKLTrackerApp() {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTrails.map(trail => {
-            const userProg = getProgressForTrail(trail.id);
-            const isDone = (userProg.ebikeCount + userProg.analogCount) > 0;
-            const hasUnsavedChanges = !!unsavedChanges[`${selectedUserId}_${trail.id}`];
-            
-            // שימוש בלינקים המותאמים אישית אם קיימים, אחרת בדיפולט
-            const currentKklLink = customLinks[trail.id]?.kklLink || trail.kklLink;
-            const currentReviewLink = customLinks[trail.id]?.reviewLink || trail.reviewLink;
-            const isEditingLinks = editingLinksId === trail.id;
+        {/* View Mode Toggles */}
+        <div className="flex justify-end pt-2">
+          <div className="bg-white border border-slate-200 rounded-lg p-1 flex gap-1 shadow-sm">
+            <button 
+              onClick={() => setViewMode('grid')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-colors ${viewMode === 'grid' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <LayoutGrid className="w-4 h-4" /> רשימה
+            </button>
+            <button 
+              onClick={() => setViewMode('map')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-colors ${viewMode === 'map' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <MapIcon className="w-4 h-4" /> מפה חיה
+            </button>
+          </div>
+        </div>
 
-            return (
-              <div 
-                key={trail.id} 
-                className={`bg-white rounded-2xl border transition-all duration-200 flex flex-col overflow-hidden relative
-                  ${isDone ? 'border-emerald-400 shadow-md ring-1 ring-emerald-400/20' : 'border-slate-200 shadow-sm hover:shadow-md'}`}
-              >
-                {hasUnsavedChanges && (
-                  <div className="absolute top-0 right-0 w-3 h-3 bg-amber-400 rounded-bl-lg shadow-sm" title="שינויים לא שמורים" />
-                )}
+        {/* Dynamic Rendering Based on View Mode */}
+        {viewMode === 'map' ? (
+          <section className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 h-[600px] w-full relative z-0">
+            <MapView 
+              trails={filteredTrails}
+              getProgressForTrail={getProgressForTrail}
+              setViewMode={setViewMode}
+              setSearchQuery={setSearchQuery}
+            />
+          </section>
+        ) : (
+          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTrails.map(trail => {
+              const userProg = getProgressForTrail(trail.id);
+              const isDone = (userProg.ebikeCount + userProg.analogCount) > 0;
+              const hasUnsavedChanges = !!unsavedChanges[`${selectedUserId}_${trail.id}`];
+              
+              const currentKklLink = customLinks[trail.id]?.kklLink ?? trail.kklLink;
+              const currentReviewLink = customLinks[trail.id]?.reviewLink ?? trail.reviewLink;
+              const isEditingLinks = editingLinksId === trail.id;
 
-                <div className="p-5 border-b border-slate-100 flex-1">
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                      {isDone && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
-                      {trail.name}
-                    </h3>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getDifficultyColor(trail.difficulty)}`}>
-                      {trail.difficulty}
-                    </span>
-                  </div>
+              const hasKklLink = currentKklLink && currentKklLink.trim() !== '';
+              const hasReviewLink = currentReviewLink && currentReviewLink.trim() !== '';
+              const noLinks = !hasKklLink && !hasReviewLink;
 
-                  <div className="grid grid-cols-2 gap-3 text-sm text-slate-600 mb-4">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="w-4 h-4 text-slate-400" />
-                      <span>אזור {trail.region}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Route className="w-4 h-4 text-slate-400" />
-                      <span>{trail.lengthKm} ק"מ</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Mountain className="w-4 h-4 text-slate-400" />
-                      <span>{trail.elevationM} מ' טיפוס</span>
-                    </div>
-                  </div>
-
-                  <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <p className="flex gap-2">
-                      <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                      {trail.popularity}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-5 bg-slate-50/50 flex flex-col gap-4">
-                  
-                  <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-2 pl-2">
-                      <div className="bg-amber-100 p-1.5 rounded-lg text-amber-700">
-                        <Battery className="w-4 h-4" />
-                      </div>
-                      <span className="text-sm font-medium">חשמלוק</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button 
-                        onClick={() => handleUpdateProgress(trail.id, 'ebike', -1)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={userProg.ebikeCount === 0}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className="w-4 text-center font-bold text-lg">{userProg.ebikeCount}</span>
-                      <button 
-                        onClick={() => handleUpdateProgress(trail.id, 'ebike', 1)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-2 pl-2">
-                      <div className="bg-slate-100 p-1.5 rounded-lg text-slate-600">
-                        <Bike className="w-4 h-4" />
-                      </div>
-                      <span className="text-sm font-medium">אנלוגיות</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button 
-                        onClick={() => handleUpdateProgress(trail.id, 'analog', -1)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={userProg.analogCount === 0}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className="w-4 text-center font-bold text-lg">{userProg.analogCount}</span>
-                      <button 
-                        onClick={() => handleUpdateProgress(trail.id, 'analog', 1)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Links Section with Editing Capability */}
-                  {isEditingLinks ? (
-                    <div className="mt-2 flex flex-col gap-2 p-3 bg-slate-100 rounded-xl border border-slate-200">
-                      <div className="text-xs font-bold text-slate-600 mb-1">עריכת קישורים (נשמר לכולם):</div>
-                      <input 
-                        type="url" 
-                        value={editKklLink} 
-                        onChange={e => setEditKklLink(e.target.value)}
-                        placeholder="קישור קק״ל (או אתר רשמי)..."
-                        className="w-full text-left text-sm p-2 rounded border border-slate-300 outline-none focus:border-emerald-500" dir="ltr"
-                      />
-                      <input 
-                        type="url" 
-                        value={editReviewLink} 
-                        onChange={e => setEditReviewLink(e.target.value)}
-                        placeholder="קישור לחוות דעת / מפה..."
-                        className="w-full text-left text-sm p-2 rounded border border-slate-300 outline-none focus:border-emerald-500" dir="ltr"
-                      />
-                      <div className="flex gap-2 mt-1">
-                        <button 
-                          onClick={() => handleSaveLinks(trail.id)}
-                          className="flex-1 bg-emerald-600 text-white text-sm py-1.5 rounded-lg hover:bg-emerald-700 transition"
-                        >
-                          שמור קישורים
-                        </button>
-                        <button 
-                          onClick={() => setEditingLinksId(null)}
-                          className="flex-1 bg-white border border-slate-300 text-slate-600 text-sm py-1.5 rounded-lg hover:bg-slate-50 transition"
-                        >
-                          ביטול
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2 mt-2">
-                      <a 
-                        href={currentKklLink} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        אתר קק״ל
-                      </a>
-                      <a 
-                        href={currentReviewLink} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        חוות דעת
-                      </a>
-                      <button 
-                        onClick={() => {
-                          setEditingLinksId(trail.id);
-                          setEditKklLink(currentKklLink);
-                          setEditReviewLink(currentReviewLink);
-                        }}
-                        title="ערוך קישורים למסלול זה"
-                        className="w-10 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors shadow-sm"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                    </div>
+              return (
+                <div 
+                  key={trail.id} 
+                  className={`bg-white rounded-2xl border transition-all duration-200 flex flex-col overflow-hidden relative
+                    ${isDone ? 'border-emerald-400 shadow-md ring-1 ring-emerald-400/20' : 'border-slate-200 shadow-sm hover:shadow-md'}`}
+                >
+                  {hasUnsavedChanges && (
+                    <div className="absolute top-0 right-0 w-3 h-3 bg-amber-400 rounded-bl-lg shadow-sm" title="שינויים לא שמורים" />
                   )}
 
+                  <div className="p-5 border-b border-slate-100 flex-1">
+                    <div className="flex justify-between items-start mb-3">
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        {isDone && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
+                        {trail.name}
+                      </h3>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getDifficultyColor(trail.difficulty)}`}>
+                        {trail.difficulty}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm text-slate-600 mb-4">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-4 h-4 text-slate-400" />
+                        <span>אזור {trail.region}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Route className="w-4 h-4 text-slate-400" />
+                        <span>{trail.lengthKm} ק"מ</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Mountain className="w-4 h-4 text-slate-400" />
+                        <span>{trail.elevationM} מ' טיפוס</span>
+                      </div>
+                    </div>
+
+                    <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <p className="flex gap-2">
+                        <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                        {trail.popularity || 'אין מידע נוסף למסלול זה.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 bg-slate-50/50 flex flex-col gap-4">
+                    
+                    <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+                      <div className="flex items-center gap-2 pl-2">
+                        <div className="bg-amber-100 p-1.5 rounded-lg text-amber-700">
+                          <Battery className="w-4 h-4" />
+                        </div>
+                        <span className="text-sm font-medium">חשמלוק</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => handleUpdateProgress(trail.id, 'ebike', -1)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={userProg.ebikeCount === 0}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="w-4 text-center font-bold text-lg">{userProg.ebikeCount}</span>
+                        <button 
+                          onClick={() => handleUpdateProgress(trail.id, 'ebike', 1)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+                      <div className="flex items-center gap-2 pl-2">
+                        <div className="bg-slate-100 p-1.5 rounded-lg text-slate-600">
+                          <Bike className="w-4 h-4" />
+                        </div>
+                        <span className="text-sm font-medium">אנלוגיות</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => handleUpdateProgress(trail.id, 'analog', -1)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={userProg.analogCount === 0}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="w-4 text-center font-bold text-lg">{userProg.analogCount}</span>
+                        <button 
+                          onClick={() => handleUpdateProgress(trail.id, 'analog', 1)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {isEditingLinks ? (
+                      <div className="mt-2 flex flex-col gap-2 p-3 bg-slate-100 rounded-xl border border-slate-200">
+                        <div className="text-xs font-bold text-slate-600 mb-1">עריכת קישורים (נשמר לכולם):</div>
+                        <input 
+                          type="url" 
+                          value={editKklLink} 
+                          onChange={e => setEditKklLink(e.target.value)}
+                          placeholder="קישור קק״ל (או אתר רשמי)..."
+                          className="w-full text-left text-sm p-2 rounded border border-slate-300 outline-none focus:border-emerald-500" dir="ltr"
+                        />
+                        <input 
+                          type="url" 
+                          value={editReviewLink} 
+                          onChange={e => setEditReviewLink(e.target.value)}
+                          placeholder="קישור לחוות דעת / מפה..."
+                          className="w-full text-left text-sm p-2 rounded border border-slate-300 outline-none focus:border-emerald-500" dir="ltr"
+                        />
+                        <div className="flex gap-2 mt-1">
+                          <button 
+                            onClick={() => handleSaveLinks(trail.id)}
+                            className="flex-1 bg-emerald-600 text-white text-sm py-1.5 rounded-lg hover:bg-emerald-700 transition"
+                          >
+                            שמור
+                          </button>
+                          <button 
+                            onClick={() => setEditingLinksId(null)}
+                            className="flex-1 bg-white border border-slate-300 text-slate-600 text-sm py-1.5 rounded-lg hover:bg-slate-50 transition"
+                          >
+                            ביטול
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 mt-2">
+                        {hasKklLink && (
+                          <a 
+                            href={currentKklLink} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
+                          >
+                            <ExternalLink className="w-4 h-4 shrink-0" />
+                            אתר קק״ל
+                          </a>
+                        )}
+                        
+                        {hasReviewLink && (
+                          <a 
+                            href={currentReviewLink} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
+                          >
+                            <ExternalLink className="w-4 h-4 shrink-0" />
+                            חוות דעת
+                          </a>
+                        )}
+
+                        <button 
+                          onClick={() => {
+                            setEditingLinksId(trail.id);
+                            setEditKklLink(currentKklLink || '');
+                            setEditReviewLink(currentReviewLink || '');
+                          }}
+                          title="ערוך קישורים למסלול זה"
+                          className={`flex items-center justify-center bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors shadow-sm ${noLinks ? 'flex-1 py-2 gap-2 text-sm' : 'w-10'}`}
+                        >
+                          <Pencil className="w-4 h-4" />
+                          {noLinks && <span>הוסף קישורים למסלול</span>}
+                        </button>
+                      </div>
+                    )}
+
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </section>
+              );
+            })}
+          </section>
+        )}
 
         {filteredTrails.length === 0 && (
           <div className="text-center py-12 text-slate-500">
