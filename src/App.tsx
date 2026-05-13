@@ -2,14 +2,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Bike, Mountain, MapPin, ExternalLink, UserPlus, 
-  Trophy, Route, Activity, ChevronDown, ChevronUp, 
-  Plus, Minus, Info, CheckCircle2, Battery, BatteryWarning
+  Trophy, Route, Activity, Plus, Minus, Info, 
+  CheckCircle2, Battery, Save, Loader2
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, doc, setDoc, writeBatch } from 'firebase/firestore';
 
-// הגדרות Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyBmK7bR61OzD4sBCe9LdPA1Wzod8SUKs5w",
   authDomain: "single-tracker.firebaseapp.com",
@@ -25,7 +24,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Mock data for KKL trails (and Ramat Hanadiv)
 const TRAILS = [
   { id: 't1', name: 'סינגל עירון', region: 'מרכז', difficulty: 'בינוני', lengthKm: 16, elevationM: 300, popularity: 'פופולארי מאוד, זורם ומהיר.', kklLink: 'https://www.kkl.org.il/travel/trips/108924/', reviewLink: 'https://eyarok.org.il/trip/239' },
   { id: 't2', name: 'השופט - טבעת צהובה', region: 'צפון', difficulty: 'קל', lengthKm: 14, elevationM: 200, popularity: 'מעולה למתחילים ולחימום. המון צל.', kklLink: 'https://www.kkl.org.il/travel/trips/108620/', reviewLink: 'https://eyarok.org.il/trip/202' },
@@ -49,23 +47,29 @@ const TRAILS = [
 
 export default function KKLTrackerApp() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [authUser, setAuthUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [progressData, setProgressData] = useState([]);
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [newUserName, setNewUserName] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [newUserName, setNewUserName] = useState("");
   const [isAddingUser, setIsAddingUser] = useState(false);
   
-  // Filters
-  const [filterRegion, setFilterRegion] = useState('הכל');
-  const [filterDifficulty, setFilterDifficulty] = useState('הכל');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [unsavedChanges, setUnsavedChanges] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const [filterRegion, setFilterRegion] = useState("הכל");
+  const [filterDifficulty, setFilterDifficulty] = useState("הכל");
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // שימוש בנתיבים ישירים ופשוטים ב-Firebase לביצועים מהירים יותר
-  const usersRef = collection(db, 'kkl_users');
-  const progressRef = collection(db, 'kkl_progress');
+  const usersRef = collection(db, "kkl_users");
+  const progressRef = collection(db, "kkl_progress");
 
-  // אתחול והתחברות ל-Firebase
+  useEffect(() => {
+    const timeout = setTimeout(() => setIsLoading(false), 2000);
+    return () => clearTimeout(timeout);
+  }, []);
+
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -85,40 +89,47 @@ export default function KKLTrackerApp() {
     return () => unsubscribe();
   }, []);
 
-  // טעינת נתונים בזמן אמת מהרגע שהתחברנו
   useEffect(() => {
     if (!authUser) return;
 
     let isFirstLoad = true;
+    setIsFetching(true);
 
-    const unsubUsers = onSnapshot(usersRef, async (snapshot) => {
+    const unsubUsers = onSnapshot(usersRef, (snapshot) => {
       const fetchedUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // יצירת נתוני בסיס בפעם הראשונה בלבד
       if (fetchedUsers.length === 0 && isFirstLoad) {
-        await seedInitialData();
-      } else {
+        seedInitialData();
+        setIsLoading(false); 
+      } else if (fetchedUsers.length > 0) {
         setUsers(fetchedUsers);
-        // בחירת משתמש דיפולטיבי בצורה בטוחה שלא דורסת שינויים של המשתמש
         setSelectedUserId(prev => {
           if (!prev && fetchedUsers.length > 0) {
-            const alon = fetchedUsers.find(u => u.name === 'אלון');
+            const alon = fetchedUsers.find(u => u.name === "אלון");
             return alon ? alon.id : fetchedUsers[0].id;
           }
           return prev;
         });
-        setIsLoading(false); // הנתונים מוכנים, אפשר להוריד את מסך הטעינה!
+        setIsLoading(false);
       }
+      
+      setIsFetching(false);
       isFirstLoad = false;
     }, (error) => {
         console.error("Users fetch error", error);
         setIsLoading(false);
+        setIsFetching(false);
     });
 
     const unsubProgress = onSnapshot(progressRef, (snapshot) => {
+      setIsFetching(true);
       const fetchedProgress = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProgressData(fetchedProgress);
-    }, (error) => console.error("Progress fetch error", error));
+      setTimeout(() => setIsFetching(false), 500);
+    }, (error) => {
+      console.error("Progress fetch error", error);
+      setIsFetching(false);
+    });
 
     return () => {
       unsubUsers();
@@ -126,25 +137,24 @@ export default function KKLTrackerApp() {
     };
   }, [authUser]);
 
-  // פונקציה לייצור הנתונים הראשוניים של אלון ודניאל
   const seedInitialData = async () => {
-    const alonId = 'u_alon';
-    const danielId = 'u_daniel';
+    const alonId = "u_alon";
+    const danielId = "u_daniel";
     
     const initialUsers = [
-      { id: alonId, name: 'אלון', createdAt: new Date().toISOString() },
-      { id: danielId, name: 'דניאל', createdAt: new Date().toISOString() }
+      { id: alonId, name: "אלון", createdAt: new Date().toISOString() },
+      { id: danielId, name: "דניאל", createdAt: new Date().toISOString() }
     ];
 
     const initialProgress = [
-      { id: `${alonId}_t1`, userId: alonId, trailId: 't1', ebikeCount: 5, analogCount: 0 },
-      { id: `${alonId}_t2`, userId: alonId, trailId: 't2', ebikeCount: 1, analogCount: 0 },
-      { id: `${alonId}_t3`, userId: alonId, trailId: 't3', ebikeCount: 1, analogCount: 0 },
-      { id: `${alonId}_t4`, userId: alonId, trailId: 't4', ebikeCount: 1, analogCount: 0 },
-      { id: `${danielId}_t1`, userId: danielId, trailId: 't1', ebikeCount: 1, analogCount: 0 },
-      { id: `${danielId}_t2`, userId: danielId, trailId: 't2', ebikeCount: 1, analogCount: 0 },
-      { id: `${danielId}_t3`, userId: danielId, trailId: 't3', ebikeCount: 1, analogCount: 0 },
-      { id: `${danielId}_t4`, userId: danielId, trailId: 't4', ebikeCount: 1, analogCount: 0 }
+      { id: alonId + "_t1", userId: alonId, trailId: "t1", ebikeCount: 5, analogCount: 0 },
+      { id: alonId + "_t2", userId: alonId, trailId: "t2", ebikeCount: 1, analogCount: 0 },
+      { id: alonId + "_t3", userId: alonId, trailId: "t3", ebikeCount: 1, analogCount: 0 },
+      { id: alonId + "_t4", userId: alonId, trailId: "t4", ebikeCount: 1, analogCount: 0 },
+      { id: danielId + "_t1", userId: danielId, trailId: "t1", ebikeCount: 1, analogCount: 0 },
+      { id: danielId + "_t2", userId: danielId, trailId: "t2", ebikeCount: 1, analogCount: 0 },
+      { id: danielId + "_t3", userId: danielId, trailId: "t3", ebikeCount: 1, analogCount: 0 },
+      { id: danielId + "_t4", userId: danielId, trailId: "t4", ebikeCount: 1, analogCount: 0 }
     ];
 
     try {
@@ -154,7 +164,6 @@ export default function KKLTrackerApp() {
       await batch.commit();
     } catch (e) {
       console.error("Error seeding initial data", e);
-      setIsLoading(false);
     }
   };
 
@@ -162,43 +171,60 @@ export default function KKLTrackerApp() {
     e.preventDefault();
     if (!newUserName.trim() || !authUser) return;
     
-    const newUserId = `u_${Date.now()}`;
+    setIsFetching(true);
+    const newUserId = "u_" + Date.now();
     const newUser = { name: newUserName.trim(), createdAt: new Date().toISOString() };
 
-    await setDoc(doc(usersRef, newUserId), newUser);
-    setNewUserName('');
-    setIsAddingUser(false);
-    setSelectedUserId(newUserId);
+    try {
+      await setDoc(doc(usersRef, newUserId), newUser);
+      setNewUserName("");
+      setIsAddingUser(false);
+      setSelectedUserId(newUserId);
+    } catch(err) {
+      console.error("Failed to add user", err);
+    } finally {
+      setIsFetching(false);
+    }
   };
 
-  const handleUpdateProgress = async (trailId, type, delta) => {
+  const handleUpdateProgress = (trailId, type, delta) => {
     if (!selectedUserId || !authUser) return;
 
-    const progressDocId = `${selectedUserId}_${trailId}`;
-    const existingProgress = progressData.find(p => p.id === progressDocId) || { id: progressDocId, userId: selectedUserId, trailId: trailId, ebikeCount: 0, analogCount: 0 };
+    const progressDocId = selectedUserId + "_" + trailId;
+    const existing = unsavedChanges[progressDocId] || progressData.find(p => p.id === progressDocId) || { id: progressDocId, userId: selectedUserId, trailId: trailId, ebikeCount: 0, analogCount: 0 };
     
-    let newEbikeCount = existingProgress.ebikeCount;
-    let newAnalogCount = existingProgress.analogCount;
+    let newEbike = existing.ebikeCount;
+    let newAnalog = existing.analogCount;
 
-    if (type === 'ebike') newEbikeCount = Math.max(0, newEbikeCount + delta);
-    if (type === 'analog') newAnalogCount = Math.max(0, newAnalogCount + delta);
+    if (type === "ebike") newEbike = Math.max(0, newEbike + delta);
+    if (type === "analog") newAnalog = Math.max(0, newAnalog + delta);
 
-    // 1. עדכון UI מיידי כדי שהאתר ירגיש מהיר (Optimistic UI)
-    setProgressData(prev => {
-      const filtered = prev.filter(p => p.id !== progressDocId);
-      return [...filtered, { ...existingProgress, ebikeCount: newEbikeCount, analogCount: newAnalogCount }];
-    });
+    const updated = { ...existing, ebikeCount: newEbike, analogCount: newAnalog };
+    
+    setUnsavedChanges(curr => ({ ...curr, [progressDocId]: updated }));
+  };
 
-    // 2. שמירה ב-Firebase מאחורי הקלעים
+  const handleSaveChanges = async () => {
+    if (Object.keys(unsavedChanges).length === 0 || !authUser) return;
+    
+    setIsSaving(true);
     try {
-      await setDoc(doc(progressRef, progressDocId), {
-        userId: selectedUserId,
-        trailId: trailId,
-        ebikeCount: newEbikeCount,
-        analogCount: newAnalogCount
-      }, { merge: true });
+      const batch = writeBatch(db);
+      Object.values(unsavedChanges).forEach(change => {
+        batch.set(doc(progressRef, change.id), {
+          userId: change.userId,
+          trailId: change.trailId,
+          ebikeCount: change.ebikeCount,
+          analogCount: change.analogCount
+        }, { merge: true });
+      });
+      
+      await batch.commit();
+      setUnsavedChanges({});
     } catch (e) {
       console.error("Error saving to db", e);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -209,7 +235,11 @@ export default function KKLTrackerApp() {
     const totalTrailsCount = TRAILS.length;
     const totalKmCount = TRAILS.reduce((sum, t) => sum + t.lengthKm, 0);
 
-    progressData.forEach(p => {
+    const mergedProgressMap = new Map();
+    progressData.forEach(p => mergedProgressMap.set(p.id, p));
+    Object.values(unsavedChanges).forEach(p => mergedProgressMap.set(p.id, p));
+
+    Array.from(mergedProgressMap.values()).forEach(p => {
       if (p.ebikeCount > 0 || p.analogCount > 0) {
         teamTrailsDone.add(p.trailId);
       }
@@ -229,29 +259,32 @@ export default function KKLTrackerApp() {
       leftTrails: totalTrailsCount - teamTrailsDone.size,
       leftKm: totalKmCount - teamKmDone
     };
-  }, [progressData]);
+  }, [progressData, unsavedChanges]);
 
   const filteredTrails = useMemo(() => {
     return TRAILS.filter(t => {
-      const matchRegion = filterRegion === 'הכל' || t.region === filterRegion;
-      const matchDifficulty = filterDifficulty === 'הכל' || t.difficulty.includes(filterDifficulty);
+      const matchRegion = filterRegion === "הכל" || t.region === filterRegion;
+      const matchDifficulty = filterDifficulty === "הכל" || t.difficulty.includes(filterDifficulty);
       const matchSearch = t.name.includes(searchQuery) || t.popularity.includes(searchQuery);
       return matchRegion && matchDifficulty && matchSearch;
     });
   }, [filterRegion, filterDifficulty, searchQuery]);
 
   const getProgressForTrail = (trailId) => {
-    return progressData.find(p => p.id === `${selectedUserId}_${trailId}`) || { ebikeCount: 0, analogCount: 0 };
+    const progressDocId = selectedUserId + "_" + trailId;
+    if (unsavedChanges[progressDocId]) {
+      return unsavedChanges[progressDocId];
+    }
+    return progressData.find(p => p.id === progressDocId) || { id: progressDocId, userId: selectedUserId, trailId: trailId, ebikeCount: 0, analogCount: 0 };
   };
 
   const getDifficultyColor = (diff) => {
-    if (diff.includes('קל')) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-    if (diff.includes('בינוני')) return 'bg-amber-100 text-amber-800 border-amber-200';
-    if (diff.includes('קשה')) return 'bg-rose-100 text-rose-800 border-rose-200';
-    return 'bg-gray-100 text-gray-800 border-gray-200';
+    if (diff.includes("קל")) return "bg-emerald-100 text-emerald-800 border-emerald-200";
+    if (diff.includes("בינוני")) return "bg-amber-100 text-amber-800 border-amber-200";
+    if (diff.includes("קשה")) return "bg-rose-100 text-rose-800 border-rose-200";
+    return "bg-gray-100 text-gray-800 border-gray-200";
   };
 
-  // מסך טעינה יפהפה - מונע קפיצות ובעיות תצוגה!
   if (isLoading) {
     return (
       <div dir="rtl" className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
@@ -267,9 +300,28 @@ export default function KKLTrackerApp() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-20">
-      {/* Header */}
-      <header className="bg-emerald-700 text-white shadow-lg sticky top-0 z-10">
+    <div dir="rtl" className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-24 relative">
+      
+      {(isFetching || isSaving) && (
+        <div className="fixed top-0 left-0 right-0 h-1.5 bg-emerald-100 z-50 overflow-hidden">
+          <div className="h-full bg-emerald-500 rounded-full animate-pulse w-full"></div>
+        </div>
+      )}
+
+      {Object.keys(unsavedChanges).length > 0 && (
+        <div className="fixed bottom-6 left-0 right-0 flex justify-center z-40 pointer-events-none px-4">
+          <button 
+            onClick={handleSaveChanges}
+            disabled={isSaving}
+            className="pointer-events-auto w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white px-8 py-3.5 rounded-full shadow-2xl font-bold flex items-center justify-center gap-3 transition-all transform hover:-translate-y-1 active:scale-95 border-4 border-slate-700/20"
+          >
+            {isSaving ? <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" /> : <Save className="w-5 h-5 text-emerald-400" />}
+            {isSaving ? "שומר בשרת..." : "שמור " + Object.keys(unsavedChanges).length + " שינויים במסד הנתונים"}
+          </button>
+        </div>
+      )}
+
+      <header className="bg-emerald-700 text-white shadow-lg sticky top-0 z-10 pt-1.5">
         <div className="max-w-6xl mx-auto px-4 py-4 sm:py-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -282,7 +334,6 @@ export default function KKLTrackerApp() {
               </div>
             </div>
 
-            {/* User Selector */}
             <div className="flex items-center gap-2 bg-white/10 p-2 rounded-xl border border-white/20 w-full sm:w-auto">
               <span className="text-sm text-emerald-50 whitespace-nowrap">רוכב מציג:</span>
               <select 
@@ -304,7 +355,6 @@ export default function KKLTrackerApp() {
             </div>
           </div>
 
-          {/* Add User Form */}
           {isAddingUser && (
             <form onSubmit={handleAddUser} className="mt-4 flex gap-2 max-w-sm ml-auto animate-in fade-in slide-in-from-top-4">
               <input 
@@ -324,7 +374,6 @@ export default function KKLTrackerApp() {
 
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         
-        {/* Team Progress Dashboard */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <div className="flex items-center gap-2 mb-6">
             <Trophy className="w-6 h-6 text-amber-500" />
@@ -332,7 +381,6 @@ export default function KKLTrackerApp() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Trails Progress */}
             <div>
               <div className="flex justify-between text-sm font-medium mb-2">
                 <span>מסלולים שסיימנו</span>
@@ -341,22 +389,21 @@ export default function KKLTrackerApp() {
               <div className="h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
                 <div 
                   className="h-full bg-gradient-to-l from-emerald-400 to-emerald-600 transition-all duration-1000 ease-out"
-                  style={{ width: `${(stats.doneTrails / stats.totalTrails) * 100}%` }}
+                  style={{ width: ((stats.doneTrails / stats.totalTrails) * 100) + "%" }}
                 />
               </div>
               <p className="text-xs text-slate-500 mt-2">נשארו עוד {stats.leftTrails} מסלולים כדי להשלים את היעד.</p>
             </div>
 
-            {/* Distance Progress */}
             <div>
               <div className="flex justify-between text-sm font-medium mb-2">
-                <span>קילומטראז' מצטבר</span>
-                <span className="text-amber-600">{stats.doneKm} / {stats.totalKm} ק"מ</span>
+                <span>קילומטראז׳ מצטבר</span>
+                <span className="text-amber-600">{stats.doneKm} / {stats.totalKm} ק״מ</span>
               </div>
               <div className="h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
                 <div 
                   className="h-full bg-gradient-to-l from-amber-400 to-amber-600 transition-all duration-1000 ease-out"
-                  style={{ width: `${(stats.doneKm / stats.totalKm) * 100}%` }}
+                  style={{ width: ((stats.doneKm / stats.totalKm) * 100) + "%" }}
                 />
               </div>
               <p className="text-xs text-slate-500 mt-2">רחוקים {stats.leftKm} קילומטרים מסיום כלל הסינגלים.</p>
@@ -364,7 +411,6 @@ export default function KKLTrackerApp() {
           </div>
         </section>
 
-        {/* Filters & Search */}
         <section className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
           <div className="flex w-full md:w-auto gap-2">
             <select 
@@ -402,26 +448,27 @@ export default function KKLTrackerApp() {
           </div>
         </section>
 
-        {/* Trails Grid */}
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTrails.map(trail => {
             const userProg = getProgressForTrail(trail.id);
             const isDone = (userProg.ebikeCount + userProg.analogCount) > 0;
+            const hasUnsavedChanges = !!unsavedChanges[selectedUserId + "_" + trail.id];
+            const cardClasses = "bg-white rounded-2xl border transition-all duration-200 flex flex-col overflow-hidden relative " + (isDone ? "border-emerald-400 shadow-md ring-1 ring-emerald-400/20" : "border-slate-200 shadow-sm hover:shadow-md");
+            const badgeClasses = "px-2.5 py-1 rounded-full text-xs font-semibold border " + getDifficultyColor(trail.difficulty);
 
             return (
-              <div 
-                key={trail.id} 
-                className={`bg-white rounded-2xl border transition-all duration-200 flex flex-col overflow-hidden
-                  ${isDone ? 'border-emerald-400 shadow-md ring-1 ring-emerald-400/20' : 'border-slate-200 shadow-sm hover:shadow-md'}`}
-              >
-                {/* Card Header */}
+              <div key={trail.id} className={cardClasses}>
+                {hasUnsavedChanges && (
+                  <div className="absolute top-0 right-0 w-3 h-3 bg-amber-400 rounded-bl-lg shadow-sm" title="שינויים לא שמורים" />
+                )}
+
                 <div className="p-5 border-b border-slate-100 flex-1">
                   <div className="flex justify-between items-start mb-3">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                       {isDone && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
                       {trail.name}
                     </h3>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getDifficultyColor(trail.difficulty)}`}>
+                    <span className={badgeClasses}>
                       {trail.difficulty}
                     </span>
                   </div>
@@ -433,11 +480,11 @@ export default function KKLTrackerApp() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Route className="w-4 h-4 text-slate-400" />
-                      <span>{trail.lengthKm} ק"מ</span>
+                      <span>{trail.lengthKm} ק״מ</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Mountain className="w-4 h-4 text-slate-400" />
-                      <span>{trail.elevationM} מ' טיפוס</span>
+                      <span>{trail.elevationM} מטר טיפוס</span>
                     </div>
                   </div>
 
@@ -449,10 +496,8 @@ export default function KKLTrackerApp() {
                   </div>
                 </div>
 
-                {/* Tracking Controls */}
                 <div className="p-5 bg-slate-50/50 flex flex-col gap-4">
                   
-                  {/* E-Bike Control */}
                   <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-2 pl-2">
                       <div className="bg-amber-100 p-1.5 rounded-lg text-amber-700">
@@ -462,7 +507,7 @@ export default function KKLTrackerApp() {
                     </div>
                     <div className="flex items-center gap-3">
                       <button 
-                        onClick={() => handleUpdateProgress(trail.id, 'ebike', -1)}
+                        onClick={() => handleUpdateProgress(trail.id, "ebike", -1)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={userProg.ebikeCount === 0}
                       >
@@ -470,7 +515,7 @@ export default function KKLTrackerApp() {
                       </button>
                       <span className="w-4 text-center font-bold text-lg">{userProg.ebikeCount}</span>
                       <button 
-                        onClick={() => handleUpdateProgress(trail.id, 'ebike', 1)}
+                        onClick={() => handleUpdateProgress(trail.id, "ebike", 1)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
                       >
                         <Plus className="w-4 h-4" />
@@ -478,7 +523,6 @@ export default function KKLTrackerApp() {
                     </div>
                   </div>
 
-                  {/* Analog Control */}
                   <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-2 pl-2">
                       <div className="bg-slate-100 p-1.5 rounded-lg text-slate-600">
@@ -488,7 +532,7 @@ export default function KKLTrackerApp() {
                     </div>
                     <div className="flex items-center gap-3">
                       <button 
-                        onClick={() => handleUpdateProgress(trail.id, 'analog', -1)}
+                        onClick={() => handleUpdateProgress(trail.id, "analog", -1)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={userProg.analogCount === 0}
                       >
@@ -496,7 +540,7 @@ export default function KKLTrackerApp() {
                       </button>
                       <span className="w-4 text-center font-bold text-lg">{userProg.analogCount}</span>
                       <button 
-                        onClick={() => handleUpdateProgress(trail.id, 'analog', 1)}
+                        onClick={() => handleUpdateProgress(trail.id, "analog", 1)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
                       >
                         <Plus className="w-4 h-4" />
@@ -504,7 +548,6 @@ export default function KKLTrackerApp() {
                     </div>
                   </div>
 
-                  {/* Links */}
                   <div className="flex gap-2 mt-2">
                     <a 
                       href={trail.kklLink} 
@@ -513,7 +556,7 @@ export default function KKLTrackerApp() {
                       className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
                     >
                       <ExternalLink className="w-4 h-4" />
-                      אתר קק"ל
+                      אתר קק״ל
                     </a>
                     <a 
                       href={trail.reviewLink} 
